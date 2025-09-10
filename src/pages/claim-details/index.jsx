@@ -5,6 +5,7 @@ import GlobalHeader from '../../components/ui/GlobalHeader';
 import RoleBasedSidebar from '../../components/ui/RoleBasedSidebar';
 import BreadcrumbNavigation from '../../components/ui/BreadcrumbNavigation';
 import Icon from '../../components/AppIcon';
+import EmbeddedFooter from 'pages/claim-submission/components/EmbebedFooter';
 
 const Badge = ({ children, tone = 'default' }) => {
   const tones = {
@@ -25,7 +26,7 @@ const ClaimDetails = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
+  const [footerH, setFooterH] = useState(72);
   // NUEVO: estado de envío al webhook
   const [sending, setSending] = useState(false);
   const [sendMsg, setSendMsg] = useState(null);
@@ -35,6 +36,9 @@ const ClaimDetails = () => {
     import.meta.env.VITE_N8N_WEBHOOK_URL ||
     'https://n8n.nextisolutions.com/webhook-test/3767beb5-1550-4824-8ec9-ca5810946cb8';
 
+  const EMBED_URL =
+    import.meta.env.VITE_EMBED_URL ||
+    'https://n8n.nextisolutions.com/workflow/Wf0FgM2AETDcrbli';
   // ====== Toma la respuesta tal cual del navigate ======
   const apiResponse = useMemo(() => location?.state?.apiResponse ?? null, [location?.state?.apiResponse]);
 
@@ -306,6 +310,16 @@ const ClaimDetails = () => {
             </div>
           </div>
         </div>
+        <EmbeddedFooter
+          src={EMBED_URL}
+          title="Información relacionada"
+          collapsedHeight={72}
+          expandedHeight={420}
+          defaultExpanded={false}
+          onHeightChange={setFooterH}
+          allow="clipboard-write; clipboard-read"
+          sandbox="allow-scripts allow-forms allow-same-origin"
+        />
       </main>
     </div>
   );

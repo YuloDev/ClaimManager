@@ -31,7 +31,7 @@ const initialForm = {
 
 const EMBED_URL =
   import.meta.env.VITE_EMBED_URL ||
-  'https://n8n.nextisolutions.com/workflow/Wf0FgM2AETDcrbli';
+  'https://n8n.nextisolutions.com/workflow/lXMli6OhrGGz8FzZ';
 
 const VALIDATOR_URL =
   import.meta.env.VITE_VALIDATOR_URL ||
