@@ -35,7 +35,7 @@ const EMBED_URL =
 
 const VALIDATOR_URL =
   import.meta.env.VITE_VALIDATOR_URL ||
-  'http://31.97.150.234:8002/validar-factura';
+  'https://api-forense.nextisolutions.com/validar-factura';
 
 const REQUIRED_FIELDS = [
   'patientInfo.fullName',
