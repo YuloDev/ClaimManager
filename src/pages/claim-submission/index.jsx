@@ -18,10 +18,10 @@ const initialForm = {
     fullName: 'JIMENEZ BENAVIDES ONAUR JUMANDY ',
     identification: '0707070579',
     birthDate: '2002-07-14',
-    gender: 'Masculino',
+    gender: 'male',
     phone: '0992880198',
     email: '',
-    relationship: 'Titular',
+    relationship: 'self',
     policyNumber: 'POL-2024-XXX',
     address: '',
     careType: 'hospitalario',
@@ -35,7 +35,7 @@ const EMBED_URL =
 
 const VALIDATOR_URL =
   import.meta.env.VITE_VALIDATOR_URL ||
-  'https://api-forense.nextisolutions.com/validar-factura';
+  'http://31.97.150.234:8002/validar-factura';
 
 const REQUIRED_FIELDS = [
   'patientInfo.fullName',
@@ -212,11 +212,11 @@ const ClaimSubmission = () => {
         })
       );
 
-      // 3) Adjuntar otros docs en base64 (no-factura) con truncado opcional
+      // 3) Adjuntar otros docs (no-factura)
       const TRUNCATE_BASE64 = true;
-      const MAX_BASE64_CHARS = 2_000_000; // ~1.5MB aprox
+      const MAX_BASE64_CHARS = 2_000_000;
       const attachments = jsonBody.files
-        .filter((f) => f.documentType !== 'factura') // ← “otros documentos”
+        .filter((f) => f.documentType !== 'factura')
         .map((f) => {
           const raw = String(f.base64 || '');
           const truncated = TRUNCATE_BASE64 && raw.length > MAX_BASE64_CHARS;
@@ -232,24 +232,48 @@ const ClaimSubmission = () => {
           };
         });
 
-      // Si quisieras enviar TODOS (incluidas facturas), cambia el filter() por .map() directo.
+      // 🔹 4) Enviar recetas al webhook y capturar respuesta
+      let recetasResponse = null;
+      const recetas = jsonBody.files.filter((f) => f.documentType === 'receta');
+      if (recetas.length > 0) {
+        try {
+          const res = await fetch(
+            "https://n8n.nextisolutions.com/webhook-test/c105329a-2945-43de-b619-baa3a31514f9",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                payload: jsonBody.payload,
+                recetas: recetas,
+              }),
+            }
+          );
+          recetasResponse = await res.json().catch(() => null);
+          console.log("Respuesta del webhook de recetas:", recetasResponse);
+        } catch (err) {
+          console.error("Error enviando recetas al webhook:", err);
+        }
+      }
 
-      // 4) Armar objeto para la siguiente vista (sin webhook)
+      // 5) Armar objeto para la siguiente vista (agregamos recetasResponse)
       const apiPayload = {
         patientInfo: jsonBody.payload.patientInfo,
         diagnosis: jsonBody.payload.diagnosis,
-        results,        // respuestas del validador por cada factura
-        attachments,    // ← AQUÍ VAN LOS OTROS DOCUMENTOS EN BASE64
+        results,
+        attachments,
+        recetasResponse, // 👈 agregado aquí
       };
 
-      // 5) Navegar y mostrar en ClaimDetails
-      navigate('/claim-details', { state: { apiResponse: apiPayload } });
+      // 6) Navegar
+      navigate("/claim-details", { state: { apiResponse: apiPayload } });
     } catch (error) {
-      console.error('Error en validación:', error);
+      console.error("Error en validación:", error);
     } finally {
       setIsLoading(false);
     }
   }, [formData, uploadedFiles, navigate]);
+
+
 
 
   useEffect(() => {

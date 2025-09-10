@@ -11,6 +11,7 @@ import LoginPage from './pages/login';
 import AffiliateDashboard from './pages/affiliate-dashboard';
 import AnalystDashboard from './pages/analyst-dashboard';
 import ClaimDetails from './pages/claim-details';
+import ClaimReimbursement from "pages/claim-reimbursement";
 
 const Routes = () => {
   return (
@@ -28,6 +29,7 @@ const Routes = () => {
         <Route path="/affiliate-dashboard" element={<AffiliateDashboard />} />
         <Route path="/analyst-dashboard" element={<AnalystDashboard />} />
         <Route path="/claim-details" element={<ClaimDetails />} />
+        <Route path="/claim-reimbursement" element={<ClaimReimbursement />} />
         <Route path="*" element={<NotFound />} />
       </RouterRoutes>
       </ErrorBoundary>

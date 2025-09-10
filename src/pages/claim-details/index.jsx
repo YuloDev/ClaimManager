@@ -56,28 +56,17 @@ const ClaimDetails = () => {
 
   // ===== Enviar al webhook de n8n =====
   const buildWebhookBody = () => {
-    // armamos el payload en el mismo “molde” que usas en el backend:
     return {
       payload: {
         patientInfo,
         diagnosis,
-        // puedes incluir más aquí si quieres que persista
-        // p.ej. resumen, usuario, etc.
       },
-      // Resultados técnicos de validación (por facturas)
+      // solo guardamos los resultados del API de validación (facturas)
       validationResults: results,
-      // Adjuntos (otros documentos) con base64
-      files: attachments.map(a => ({
-        index: a.index,
-        filename: a.filename,
-        mimeType: a.mimeType || 'application/octet-stream',
-        size: a.size || 0,
-        documentType: a.documentType || 'otro',
-        base64: a.base64 || '',
-        truncated: !!a.truncated,
-      })),
+      // 🔹 incluimos directamente la respuesta del webhook de recetas
+      recetasResponse: apiResponse?.recetasResponse ?? null,
       meta: {
-        source: 'ClaimDetails',
+        source: "ClaimDetails",
         sentAt: new Date().toISOString(),
       },
     };
@@ -98,14 +87,22 @@ const ClaimDetails = () => {
         throw new Error(data?.message || data?.error || `HTTP ${res.status}`);
       }
       setSendMsg({ ok: true, text: 'Enviado a n8n correctamente.' });
-      // Si quieres navegar o mostrar otro panel de éxito, hazlo aquí:
-      // navigate('/otra-ruta', { state: { ... } })
+
+      // 🚀 Redirigir a ClaimReimbursement con los datos de respuesta
+      navigate('/claim-reimbursement', {
+        state: {
+          reimbursement: data ?? null,   // 👈 aquí pasamos el objeto completo
+          requested: diagnosis?.totalAmount ?? 0,
+        },
+      });
+
     } catch (err) {
       setSendMsg({ ok: false, text: `Error al enviar: ${String(err?.message || err)}` });
     } finally {
       setSending(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -131,7 +128,7 @@ const ClaimDetails = () => {
                   <h3 className="text-base font-semibold">Resumen del Caso</h3>
                 </div>
                 <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>  
+                  <div>
                     <div className="text-xs text-text-secondary">Paciente</div>
                     <div className="font-medium truncate">{patientInfo.fullName || '—'}</div>
                   </div>
@@ -277,29 +274,22 @@ const ClaimDetails = () => {
                   >
                     Editar envío
                   </button>
-                  <button
-                    onClick={() => window.print()}
-                    className="px-3 py-1.5 text-sm border rounded-md hover:bg-muted/50"
-                  >
-                    Imprimir
-                  </button>
                   {/* NUEVO: Enviar al webhook */}
                   <button
                     onClick={handleSendToN8N}
                     disabled={sending}
                     className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-60"
                   >
-                    {sending ? 'Enviando…' : 'Enviar a n8n'}
+                    {sending ? 'Enviando…' : 'Enviar'}
                   </button>
                 </div>
 
                 {sendMsg && (
                   <div
-                    className={`mt-3 text-xs p-2 rounded border ${
-                      sendMsg.ok
-                        ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-                        : 'text-rose-700 bg-rose-50 border-rose-200'
-                    }`}
+                    className={`mt-3 text-xs p-2 rounded border ${sendMsg.ok
+                      ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                      : 'text-rose-700 bg-rose-50 border-rose-200'
+                      }`}
                   >
                     {sendMsg.text}
                   </div>
@@ -322,4 +312,3 @@ const ClaimDetails = () => {
 };
 
 export default ClaimDetails;
-  
