@@ -5,9 +5,10 @@ import RoleBasedSidebar from '../../components/ui/RoleBasedSidebar';
 import BreadcrumbNavigation from '../../components/ui/BreadcrumbNavigation';
 import Button from '../../components/ui/Button';
 import MetricsCard from './components/MetricsCard';
+import 'react-toastify/dist/ReactToastify.css';
+import { ToastContainer, toast } from 'react-toastify';
 
 import ClaimsTable from './components/ClaimsTable';
-import QuickActions from './components/QuickActions';
 
 const AffiliateDashboard = () => {
   const navigate = useNavigate();
@@ -21,7 +22,7 @@ const AffiliateDashboard = () => {
   useEffect(() => {
     const fetchRiskWeights = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8005/config/risk-weights");
+        const res = await fetch("https://api-forense.nextisolutions.com/config/risk-weights");
         const data = await res.json();
         if (data?.RISK_WEIGHTS) {
           setRiskWeights(data.RISK_WEIGHTS);
@@ -46,7 +47,7 @@ const AffiliateDashboard = () => {
   const handleSaveWeights = async () => {
     setSaving(true);
     try {
-      const res = await fetch("http://127.0.0.1:8005/config/risk-weights", {
+      const res = await fetch("https://api-forense.nextisolutions.com/config/risk-weights", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ RISK_WEIGHTS: riskWeights }),
@@ -54,13 +55,13 @@ const AffiliateDashboard = () => {
       const data = await res.json();
       if (res.ok) {
         setRiskWeights(data.RISK_WEIGHTS);
-        alert("Pesos actualizados correctamente ✅");
+        toast.success("✅ Pesos actualizados correctamente");
       } else {
-        alert("Error al actualizar: " + (data?.detail || "Error desconocido"));
+        toast.error("Error al actualizar: " + (data?.detail || "Error desconocido"));
       }
     } catch (err) {
       console.error("Error al guardar pesos:", err);
-      alert("Error al guardar los pesos ❌");
+      toast.error("Error al guardar los pesos ❌");
     } finally {
       setSaving(false);
     }
@@ -103,6 +104,8 @@ const AffiliateDashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <ToastContainer position="bottom-right" autoClose={3000} hideProgressBar={false} newestOnTop={false} closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover theme="colored" />
+
       {/* Global Header */}
       <GlobalHeader
         isCollapsed={sidebarCollapsed}
@@ -151,22 +154,19 @@ const AffiliateDashboard = () => {
           {/* Main Content Grid */}
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             {/* Claims Table */}
-            <div className="xl:col-span-3">
+            <div className="xl:col-span-6">
               <ClaimsTable claims={mockClaims} />
             </div>
 
-            {/* Right Sidebar */}
-            <div className="xl:col-span-1 space-y-6">
-              <QuickActions />
-
-              {/* Risk Weights Config */}
+            {/* Right Sidebar -> Parametrización */}
+            <div className="xl:col-span-6 space-y-6">
               <div className="bg-card border border-border rounded-lg p-2">
                 <h3 className="text-base font-semibold mb-4">Pesos de Riesgo</h3>
                 {loadingWeights ? (
                   <p className="text-sm text-text-secondary">Cargando...</p>
                 ) : (
                   <>
-                    <div className="space-y-3 max-h-80 overflow-y-auto">
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
                       {Object.entries(riskWeights).map(([key, value]) => (
                         <div key={key} className="flex items-center justify-between border-b border-border pb-2">
                           <span className="text-sm font-medium">{key}</span>
