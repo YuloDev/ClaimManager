@@ -29,13 +29,13 @@ const initialForm = {
   diagnosis: { totalAmount: '1500' }
 };
 
-const EMBED_URL =
-  import.meta.env.VITE_EMBED_URL ||
-  'https://n8n.nextisolutions.com/workflow/lXMli6OhrGGz8FzZ';
-
-const VALIDATOR_URL =
-  import.meta.env.VITE_VALIDATOR_URL ||
+const VALIDATOR_FACTURA_URL =
+  import.meta.env.VITE_VALIDATOR_FACTURA_URL ||
   'https://api-forense.nextisolutions.com/validar-factura';
+
+const VALIDATOR_DOC_URL =
+  import.meta.env.VITE_VALIDATOR_DOC_URL ||
+  'https://api-forense.nextisolutions.com/validar-documento';
 
 const REQUIRED_FIELDS = [
   'patientInfo.fullName',
@@ -176,6 +176,26 @@ const ClaimSubmission = () => {
     return Object.keys(errs).length === 0 && filesOk;
   }, [formData, uploadedFiles]);
 
+
+  async function validateDocumento(pdfBase64, documentType) {
+    const url =
+      documentType === 'factura'
+        ? VALIDATOR_FACTURA_URL
+        : VALIDATOR_DOC_URL;
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ pdfbase64: pdfBase64 }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.detail || data?.message || 'Error al validar documento');
+    }
+    return data;
+  }
+
   const handleSubmit = useCallback(async () => {
     const v = validate(formData);
     setErrors(v);
@@ -190,7 +210,7 @@ const ClaimSubmission = () => {
       // 1) Construir payload con base64
       const jsonBody = await buildJsonPayload(formData, uploadedFiles);
 
-      // 2) Validar en el API cada documento de tipo 'factura'
+      // 2) Validar en el API cada documento según su tipo
       const results = await Promise.all(
         jsonBody.files.map(async (f) => {
           const meta = {
@@ -200,11 +220,10 @@ const ClaimSubmission = () => {
             size: f.size,
             documentType: f.documentType,
           };
-          if (f.documentType !== 'factura') {
-            return { ...meta, validation: null, skipped: true, reason: 'no_factura' };
-          }
+
           try {
-            const validation = await validateFactura(f.base64);
+            // ✅ Aquí elegimos el endpoint según el tipo de documento
+            const validation = await validateDocumento(f.base64, f.documentType);
             return { ...meta, validation, skipped: false };
           } catch (err) {
             return { ...meta, validationError: String(err?.message || err), skipped: false };
@@ -212,62 +231,36 @@ const ClaimSubmission = () => {
         })
       );
 
-      // 3) Adjuntar otros docs (no-factura)
+      // 3) Adjuntar también los archivos como attachments (truncados si no son facturas)
       const TRUNCATE_BASE64 = true;
-      const MAX_BASE64_CHARS = 2_000_000;
-      const attachments = jsonBody.files
-        .filter((f) => f.documentType !== 'factura')
-        .map((f) => {
-          const raw = String(f.base64 || '');
-          const truncated = TRUNCATE_BASE64 && raw.length > MAX_BASE64_CHARS;
-          const base64 = truncated ? raw.slice(0, MAX_BASE64_CHARS) : raw;
-          return {
-            index: f.index,
-            filename: f.filename,
-            mimeType: f.mimeType,
-            size: f.size,
-            documentType: f.documentType,
-            base64,
-            truncated,
-          };
-        });
+      const MAX_BASE64_CHARS = 2_000_000; // ~1.5MB aprox
+      const attachments = jsonBody.files.map((f) => {
+        const raw = String(f.base64 || '');
+        const truncated = TRUNCATE_BASE64 && raw.length > MAX_BASE64_CHARS;
+        const base64 = truncated ? raw.slice(0, MAX_BASE64_CHARS) : raw;
+        return {
+          index: f.index,
+          filename: f.filename,
+          mimeType: f.mimeType,
+          size: f.size,
+          documentType: f.documentType,
+          base64,
+          truncated,
+        };
+      });
 
-      // 🔹 4) Enviar recetas al webhook y capturar respuesta
-      let recetasResponse = null;
-      const recetas = jsonBody.files.filter((f) => f.documentType === 'receta');
-      if (recetas.length > 0) {
-        try {
-          const res = await fetch(
-            "https://n8n.nextisolutions.com/webhook-test/c105329a-2945-43de-b619-baa3a31514f9",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                payload: jsonBody.payload,
-                recetas: recetas,
-              }),
-            }
-          );
-          recetasResponse = await res.json().catch(() => null);
-          console.log("Respuesta del webhook de recetas:", recetasResponse);
-        } catch (err) {
-          console.error("Error enviando recetas al webhook:", err);
-        }
-      }
-
-      // 5) Armar objeto para la siguiente vista (agregamos recetasResponse)
+      // 4) Armar objeto para la siguiente vista (sin webhook)
       const apiPayload = {
         patientInfo: jsonBody.payload.patientInfo,
         diagnosis: jsonBody.payload.diagnosis,
-        results,
-        attachments,
-        recetasResponse, // 👈 agregado aquí
+        results,        // respuestas del validador por cada documento
+        attachments,    // todos los documentos con base64 (facturas + otros)
       };
 
-      // 6) Navegar
-      navigate("/claim-details", { state: { apiResponse: apiPayload } });
+      // 5) Navegar y mostrar en ClaimDetails
+      navigate('/claim-details', { state: { apiResponse: apiPayload } });
     } catch (error) {
-      console.error("Error en validación:", error);
+      console.error('Error en validación:', error);
     } finally {
       setIsLoading(false);
     }
@@ -369,16 +362,7 @@ const ClaimSubmission = () => {
         </div>
       </main>
 
-      <EmbeddedFooter
-        src={EMBED_URL}
-        title="Información relacionada"
-        collapsedHeight={72}
-        expandedHeight={420}
-        defaultExpanded={false}
-        onHeightChange={setFooterH}
-        allow="clipboard-write; clipboard-read"
-        sandbox="allow-scripts allow-forms allow-same-origin"
-      />
+
     </div>
   );
 };
