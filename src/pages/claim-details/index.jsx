@@ -47,7 +47,7 @@ const ClaimDetails = () => {
   const results = Array.isArray(apiResponse?.results) ? apiResponse.results : [];
   const attachments = Array.isArray(apiResponse?.attachments) ? apiResponse.attachments : []; // ← base64 de “otros documentos”
 
-  const validated = results.filter(r => r.documentType === 'factura');
+  const validated = results
   const formatMoney = (v) =>
     new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(Number(v || 0));
 
@@ -173,7 +173,7 @@ const ClaimDetails = () => {
                     const verificado = v?.sri_verificado === true;
                     const nivel = v?.riesgo?.nivel || '—';
                     const score = v?.riesgo?.score ?? null;
-
+                    const esFalso = v?.riesgo?.es_falso === true;
                     return (
                       <div key={`${doc.filename}-${idx}`} className="p-4">
                         <div className="flex items-center justify-between gap-3">
@@ -188,15 +188,9 @@ const ClaimDetails = () => {
                             {hasError ? (
                               <Badge tone="danger">Error en validación</Badge>
                             ) : (
-                              <>
-                                <Badge tone={stateTone(estado)}>{estado} POR SRI</Badge>
-                                <Badge tone={verificado ? 'success' : 'warn'}>
-                                  {verificado ? 'SRI verificado' : 'No verificado'}
-                                </Badge>
-                                {Number.isFinite(score) && (
-                                  <Badge tone="info">Riesgo: {nivel} ({score})</Badge>
-                                )}
-                              </>
+                              <Badge tone={esFalso ? "danger" : "success"}>
+                                {esFalso ? "El documento es falso" : "El documento es verídico"}
+                              </Badge>
                             )}
                           </div>
                         </div>

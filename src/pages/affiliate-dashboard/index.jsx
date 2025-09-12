@@ -14,6 +14,27 @@ const AffiliateDashboard = () => {
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [currentLanguage, setCurrentLanguage] = useState('es');
+  const [riskWeights, setRiskWeights] = useState({
+    // PRIORITARIAS
+    fecha_creacion_vs_emision: 15,
+    fecha_mod_vs_creacion: 12,
+    software_conocido: 12,
+    num_paginas: 10,
+    capas_multiples: 10,
+    // SECUNDARIAS
+    consistencia_fuentes: 8,
+    dpi_uniforme: 8,
+    compresion_estandar: 6,
+    alineacion_texto: 6,
+    tamano_esperado: 6,
+    // ADICIONALES
+    anotaciones_o_formularios: 3,
+    javascript_embebido: 2,
+    archivos_incrustados: 3,
+    firmas_pdf: -4,
+    actualizaciones_incrementales: 3,
+    cifrado_permisos_extra: 2,
+  });
 
   // Mock data for dashboard metrics
   const dashboardMetrics = [
@@ -153,6 +174,14 @@ const AffiliateDashboard = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
+  const handleIncrement = (key) => {
+    setRiskWeights((prev) => ({ ...prev, [key]: prev[key] + 1 }));
+  };
+
+  const handleDecrement = (key) => {
+    setRiskWeights((prev) => ({ ...prev, [key]: prev[key] - 1 }));
+  };
+
   const handleNewClaim = () => {
     navigate('/claim-submission');
   };
@@ -177,9 +206,8 @@ const AffiliateDashboard = () => {
         userRole="affiliate"
       />
       {/* Main Content */}
-      <main className={`transition-all duration-300 ease-in-out ${
-        sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
-      } pt-16`}>
+      <main className={`transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+        } pt-16`}>
         <div className="p-6 max-w-7xl mx-auto">
           {/* Breadcrumb Navigation */}
           <BreadcrumbNavigation customBreadcrumbs={breadcrumbs} className="mb-6" />
@@ -235,6 +263,35 @@ const AffiliateDashboard = () => {
             <div className="xl:col-span-1 space-y-6">
               {/* Quick Actions */}
               <QuickActions />
+              {/* Risk Weights Config */}
+              <div className="bg-card border border-border rounded-lg p-2">
+                <h3 className="text-base font-semibold mb-4">Pesos de Riesgo</h3>
+                <div className="space-y-3 max-h-80 overflow-y-auto">
+                  {Object.entries(riskWeights).map(([key, value]) => (
+                    <div
+                      key={key}
+                      className="flex items-center justify-between border-b border-border pb-2"
+                    >
+                      <span className="text-sm font-medium">{key}</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleDecrement(key)}
+                          className="px-2 py-1 text-xs bg-rose-100 text-rose-800 rounded hover:bg-rose-200"
+                        >
+                          -
+                        </button>
+                        <span className="w-10 text-center">{value}</span>
+                        <button
+                          onClick={() => handleIncrement(key)}
+                          className="px-2 py-1 text-xs bg-emerald-100 text-emerald-800 rounded hover:bg-emerald-200"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
             </div>
           </div>
