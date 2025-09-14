@@ -19,7 +19,7 @@ const RiskLevelsManager = () => {
       setLoading(true);
       setIsUsingDefaults(false);
       
-      const response = await fetch('http://127.0.0.1:8005/risk-levels');
+      const response = await fetch('https://api-forense.nextisolutions.com/risk-levels');
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -75,12 +75,65 @@ const RiskLevelsManager = () => {
       return; // No actualizar si el valor no es válido
     }
 
-    setRiskLevels(prev => ({
-      ...prev,
-      [levelName]: type === 'min' 
-        ? [numValue, prev[levelName][1]]
-        : [prev[levelName][0], numValue]
-    }));
+    setRiskLevels(prev => {
+      const newLevels = { ...prev };
+      const levelKeys = Object.keys(newLevels).sort((a, b) => {
+        // Ordenar por valor mínimo para mantener secuencia
+        return newLevels[a][0] - newLevels[b][0];
+      });
+      
+      // Actualizar el nivel actual
+      if (type === 'min') {
+        newLevels[levelName] = [numValue, prev[levelName][1]];
+      } else {
+        newLevels[levelName] = [prev[levelName][0], numValue];
+      }
+      
+      // Ajustar automáticamente los niveles adyacentes
+      const currentIndex = levelKeys.indexOf(levelName);
+      
+      if (type === 'max') {
+        // Si cambié el máximo, ajustar el mínimo del siguiente nivel
+        const nextIndex = currentIndex + 1;
+        if (nextIndex < levelKeys.length) {
+          const nextLevelName = levelKeys[nextIndex];
+          const newMin = numValue + 1;
+          if (newMin <= newLevels[nextLevelName][1]) {
+            newLevels[nextLevelName] = [newMin, newLevels[nextLevelName][1]];
+          }
+        }
+      } else if (type === 'min') {
+        // Si cambié el mínimo, ajustar el máximo del nivel anterior
+        const prevIndex = currentIndex - 1;
+        if (prevIndex >= 0) {
+          const prevLevelName = levelKeys[prevIndex];
+          const newMax = numValue - 1;
+          if (newMax >= newLevels[prevLevelName][0]) {
+            newLevels[prevLevelName] = [newLevels[prevLevelName][0], newMax];
+          }
+        }
+      }
+      
+      // Reordenar y ajustar todos los niveles para asegurar continuidad
+      const sortedLevels = levelKeys.map(key => ({
+        name: key,
+        range: newLevels[key]
+      })).sort((a, b) => a.range[0] - b.range[0]);
+      
+      // Ajustar rangos para que sean continuos
+      for (let i = 0; i < sortedLevels.length - 1; i++) {
+        const current = sortedLevels[i];
+        const next = sortedLevels[i + 1];
+        
+        // Si hay hueco entre current.max y next.min, ajustar
+        if (current.range[1] + 1 !== next.range[0]) {
+          next.range[0] = current.range[1] + 1;
+          newLevels[next.name] = next.range;
+        }
+      }
+      
+      return newLevels;
+    });
   };
 
   const getLevelColor = (levelName) => {
@@ -237,7 +290,7 @@ const RiskLevelsManager = () => {
           <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded">
             <p className="text-amber-800 font-medium">⚠️ Modo sin conexión</p>
             <p className="text-amber-700">
-              No se pudo conectar con el servidor. Los cambios no se guardarán hasta restablecer la conexión.
+              No se pudo conectar con el servidor de producción. Los cambios no se guardarán hasta restablecer la conexión.
             </p>
           </div>
         )}

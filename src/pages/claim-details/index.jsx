@@ -311,7 +311,11 @@ const ClaimDetails = () => {
                           <div className="mt-3 p-3 rounded-md border border-border bg-muted/30">
                             <div className="flex justify-between text-sm font-medium mb-2">
                               <span>Score: <span className="font-bold">{v?.riesgo?.score ?? "—"}</span></span>
-                              <span>Nivel: <span className="capitalize">{v?.riesgo?.nivel ?? "—"}</span></span>
+                              <span>Nivel: <span className="font-medium">{
+                                v?.riesgo?.score !== undefined 
+                                  ? getStateDisplayName(getStateFromScore(v.riesgo.score))
+                                  : (v?.riesgo?.nivel ? getStateDisplayName(v.riesgo.nivel) : "—")
+                              }</span></span>
                             </div>
 
                             {/* Tabla de rangos */}
