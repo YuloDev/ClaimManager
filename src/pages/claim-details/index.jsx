@@ -1,11 +1,12 @@
 // src/pages/claim-details/index.jsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import GlobalHeader from '../../components/ui/GlobalHeader';
 import RoleBasedSidebar from '../../components/ui/RoleBasedSidebar';
 import BreadcrumbNavigation from '../../components/ui/BreadcrumbNavigation';
 import Icon from '../../components/AppIcon';
 import EmbeddedFooter from 'pages/claim-submission/components/EmbebedFooter';
+import riskService from '../../services/riskService';
 
 const Badge = ({ children, tone = 'default' }) => {
   const tones = {
@@ -69,6 +70,26 @@ const ClaimDetails = () => {
   const [footerH, setFooterH] = useState(72);
   const [sending, setSending] = useState(false);
   const [sendMsg, setSendMsg] = useState(null);
+  const [riskLevels, setRiskLevels] = useState({
+    aprobado: [0, 20],
+    revision: [21, 50],
+    rechazado: [51, 100]
+  });
+
+  // Cargar niveles de riesgo desde el servidor
+  useEffect(() => {
+    const fetchRiskLevels = async () => {
+      try {
+        const levels = await riskService.getRiskLevels();
+        setRiskLevels(levels);
+      } catch (error) {
+        console.error('Error al cargar niveles de riesgo:', error);
+        // Mantener valores por defecto si hay error
+      }
+    };
+
+    fetchRiskLevels();
+  }, []);
 
   const N8N_WEBHOOK_URL =
     import.meta.env.VITE_N8N_WEBHOOK_URL ||
@@ -104,6 +125,44 @@ const ClaimDetails = () => {
     if (s === 'AUTORIZADA' || s === 'AUTORIZADO') return 'success';
     if (s === 'RECHAZADA' || s === 'NO AUTORIZADA') return 'danger';
     return 'info';
+  };
+
+  // Función para determinar el estado basado en el score y niveles dinámicos
+  const getStateFromScore = (score) => {
+    for (const [levelName, [min, max]] of Object.entries(riskLevels)) {
+      if (score >= min && score <= max) {
+        return levelName;
+      }
+    }
+    return 'unknown';
+  };
+
+  // Función para obtener el nombre de display del estado
+  const getStateDisplayName = (levelName) => {
+    const displayNames = {
+      aprobado: 'Aprobado',
+      revision: 'En Revisión',
+      rechazado: 'Rechazado',
+      // Mapeo para nombres antiguos
+      bajo: 'Aprobado',
+      medio: 'En Revisión',
+      alto: 'Rechazado'
+    };
+    return displayNames[levelName] || levelName;
+  };
+
+  // Función para obtener el color de fondo basado en el estado
+  const getStateBackgroundClass = (levelName) => {
+    const colors = {
+      aprobado: 'bg-emerald-50',
+      revision: 'bg-amber-50',
+      rechazado: 'bg-rose-50',
+      // Mapeo para nombres antiguos
+      bajo: 'bg-emerald-50',
+      medio: 'bg-amber-50',
+      alto: 'bg-rose-50'
+    };
+    return colors[levelName] || '';
   };
 
   const buildWebhookBody = () => {
@@ -264,18 +323,22 @@ const ClaimDetails = () => {
                                 </tr>
                               </thead>
                               <tbody>
-                                <tr className={`${(v?.riesgo?.score ?? 0) <= 20 ? "bg-emerald-50" : ""}`}>
-                                  <td className="border border-border px-2 py-1">0 - 20</td>
-                                  <td className="border border-border px-2 py-1">Aprobado</td>
-                                </tr>
-                                <tr className={`${(v?.riesgo?.score ?? 0) > 20 && (v?.riesgo?.score ?? 0) <= 50 ? "bg-amber-50" : ""}`}>
-                                  <td className="border border-border px-2 py-1">21 - 50</td>
-                                  <td className="border border-border px-2 py-1">En Revisión</td>
-                                </tr>
-                                <tr className={`${(v?.riesgo?.score ?? 0) > 50 ? "bg-rose-50" : ""}`}>
-                                  <td className="border border-border px-2 py-1">&gt; 50</td>
-                                  <td className="border border-border px-2 py-1">Rechazado</td>
-                                </tr>
+                                {Object.entries(riskLevels).map(([levelName, [min, max]]) => {
+                                  const currentScore = v?.riesgo?.score ?? 0;
+                                  const isCurrentLevel = currentScore >= min && currentScore <= max;
+                                  const bgClass = isCurrentLevel ? getStateBackgroundClass(levelName) : '';
+                                  
+                                  return (
+                                    <tr key={levelName} className={bgClass}>
+                                      <td className="border border-border px-2 py-1">
+                                        {min} - {max}
+                                      </td>
+                                      <td className="border border-border px-2 py-1">
+                                        {getStateDisplayName(levelName)}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>

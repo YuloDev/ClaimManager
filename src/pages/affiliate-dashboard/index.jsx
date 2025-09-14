@@ -5,8 +5,10 @@ import RoleBasedSidebar from '../../components/ui/RoleBasedSidebar';
 import BreadcrumbNavigation from '../../components/ui/BreadcrumbNavigation';
 import Button from '../../components/ui/Button';
 import MetricsCard from './components/MetricsCard';
+import RiskLevelsManager from '../../components/risk/RiskLevelsManager';
 import 'react-toastify/dist/ReactToastify.css';
 import { ToastContainer, toast } from 'react-toastify';
+import riskService from '../../services/riskService';
 
 import ClaimsTable from './components/ClaimsTable';
 
@@ -22,13 +24,11 @@ const AffiliateDashboard = () => {
   useEffect(() => {
     const fetchRiskWeights = async () => {
       try {
-        const res = await fetch("https://api-forense.nextisolutions.com/config/risk-weights");
-        const data = await res.json();
-        if (data?.RISK_WEIGHTS) {
-          setRiskWeights(data.RISK_WEIGHTS);
-        }
+        const weights = await riskService.getRiskWeights();
+        setRiskWeights(weights);
       } catch (err) {
         console.error("Error al cargar pesos de riesgo:", err);
+        toast.error("Error al cargar pesos de riesgo");
       } finally {
         setLoadingWeights(false);
       }
@@ -47,21 +47,12 @@ const AffiliateDashboard = () => {
   const handleSaveWeights = async () => {
     setSaving(true);
     try {
-      const res = await fetch("https://api-forense.nextisolutions.com/config/risk-weights", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ RISK_WEIGHTS: riskWeights }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setRiskWeights(data.RISK_WEIGHTS);
-        toast.success("✅ Pesos actualizados correctamente");
-      } else {
-        toast.error("Error al actualizar: " + (data?.detail || "Error desconocido"));
-      }
+      const updatedWeights = await riskService.updateRiskWeights(riskWeights);
+      setRiskWeights(updatedWeights);
+      toast.success("✅ Pesos actualizados correctamente");
     } catch (err) {
       console.error("Error al guardar pesos:", err);
-      toast.error("Error al guardar los pesos ❌");
+      toast.error("Error al guardar los pesos: " + err.message);
     } finally {
       setSaving(false);
     }
@@ -160,7 +151,11 @@ const AffiliateDashboard = () => {
 
             {/* Right Sidebar -> Parametrización */}
             <div className="xl:col-span-6 space-y-6">
-              <div className="bg-card border border-border rounded-lg p-2">
+              {/* Niveles de Riesgo */}
+              <RiskLevelsManager />
+
+              {/* Pesos de Riesgo */}
+              <div className="bg-card border border-border rounded-lg p-4">
                 <h3 className="text-base font-semibold mb-4">Pesos de Riesgo</h3>
                 {loadingWeights ? (
                   <p className="text-sm text-text-secondary">Cargando...</p>
