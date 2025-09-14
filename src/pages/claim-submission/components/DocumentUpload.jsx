@@ -169,7 +169,10 @@ const DocumentUpload = ({ onFilesChange, uploadedFiles = [] }) => {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-foreground truncate">{file?.name}</p>
+                      <p 
+                      className="font-medium text-foreground text-sm truncate break-words max-w-[220px]"
+                      title={file?.name} 
+                      >{file?.name}</p>
                       <p className="text-sm text-text-secondary">{formatFileSize(file?.size)}</p>
 
                       <div className="mt-2">

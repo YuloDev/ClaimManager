@@ -1,10 +1,10 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { jsPDF } from "jspdf"; // 👈 importamos jsPDF
 import GlobalHeader from "../../components/ui/GlobalHeader";
 import RoleBasedSidebar from "../../components/ui/RoleBasedSidebar";
 import BreadcrumbNavigation from "../../components/ui/BreadcrumbNavigation";
-import Icon from "../../components/AppIcon";
+import Icon from "components/AppIcon";
+import html2pdf from "html2pdf.js";
 
 const ClaimReimbursement = () => {
   const location = useLocation();
@@ -18,93 +18,131 @@ const ClaimReimbursement = () => {
       currency: "USD",
     }).format(Number(v || 0));
 
-  // 👇 Función para generar PDF
-  const handleGeneratePDF = () => {
+  const handleDownloadPDF = () => {
     if (!reimbursement) return;
 
-    const doc = new jsPDF();
-    let y = 20;
+    // 👉 Plantilla HTML para el PDF
+    const template = `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Reembolso</title>
+        <style>
+          :root {
+            --color-primary: #282d51;
+            --color-accent: #1e9cd5;
+            --color-light: #cfcfcf;
+            --color-dark-grey: #686868;
+          }
+          body {
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            color: var(--color-dark-grey);
+            line-height: 1.6;
+            background: #fff;
+            padding: 20px;
+          }
+          h1, h2 {
+            color: var(--color-primary);
+          }
+          .section {
+            margin-bottom: 20px;
+          }
+          .logo {
+            text-align: center;
+            margin-bottom: 20px;
+          }
+          .logo img {
+            height: 80px;
+            display: inline-block;
+          }
+          .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+          }
+          .table th, .table td {
+            border: 1px solid var(--color-light);
+            padding: 6px;
+            text-align: left;
+          }
+          .table th {
+            background: var(--color-accent);
+            color: #fff;
+          }
+        </style>
+      </head>
+      <body>
+      
+        <div class="logo">
+          <img src="${window.location.origin}/assets/images/logo.jpg" alt="Logo" />
+        </div>
 
-    doc.setFontSize(14);
-    doc.text("Resumen de Reembolso", 14, y);
-    y += 10;
+        <h1>Resumen de Reembolso</h1>
+        <div class="section">
+          <p><strong>Paciente:</strong> ${reimbursement.patient?.name || "—"}</p>
+          <p><strong>Póliza:</strong> ${reimbursement.patient?.policyNumber || "—"}</p>
+          <p><strong>Reembolso solicitado:</strong> ${formatMoney(requestedAmount)}</p>
+          <p><strong>Reembolso aprobado:</strong> ${formatMoney(
+            reimbursement.totalReimbursement
+          )}</p>
+        </div>
 
-    doc.setFontSize(11);
-    doc.text(`Paciente: ${reimbursement.patient?.name || "—"}`, 14, y);
-    y += 7;
-    doc.text(`Póliza: ${reimbursement.patient?.policyNumber || "—"}`, 14, y);
-    y += 7;
-    doc.text(
-      `Reembolso Solicitado: ${formatMoney(requestedAmount)}`,
-      14,
-      y
-    );
-    y += 7;
-    doc.text(
-      `Reembolso Aprobado: ${formatMoney(
-        reimbursement.totalReimbursement
-      )}`,
-      14,
-      y
-    );
-    y += 12;
+        <h2>Diagnóstico</h2>
+        <p>${reimbursement.diagnosis?.code || "—"} - ${
+      reimbursement.diagnosis?.description || "No especificado"
+    }</p>
 
-    doc.setFontSize(12);
-    doc.text("Diagnóstico", 14, y);
-    y += 7;
-    doc.setFontSize(11);
-    doc.text(
-      `${reimbursement.diagnosis?.code || "—"} - ${
-        reimbursement.diagnosis?.description || "No especificado"
-      }`,
-      14,
-      y
-    );
-    y += 12;
+        <h2>Ítems Aprobados</h2>
+        ${
+          reimbursement.approvedItems?.length > 0
+            ? `
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Ítem</th>
+                <th>Cantidad</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${reimbursement.approvedItems
+                .map(
+                  (item) => `
+                <tr>
+                  <td>${item.item}</td>
+                  <td>${item.quantity}</td>
+                  <td>${formatMoney(item.total)}</td>
+                </tr>
+              `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        `
+            : "<p>No hay ítems aprobados.</p>"
+        }
 
-    doc.setFontSize(12);
-    doc.text("Ítems Aprobados", 14, y);
-    y += 7;
-    doc.setFontSize(11);
-    if (reimbursement.approvedItems?.length > 0) {
-      reimbursement.approvedItems.forEach((item) => {
-        doc.text(
-          `${item.item} (x${item.quantity}) - ${formatMoney(item.total)}`,
-          14,
-          y
-        );
-        y += 7;
-      });
-    } else {
-      doc.text("No hay ítems aprobados.", 14, y);
-      y += 7;
-    }
-    y += 10;
+        <h2>Justificación</h2>
+        <p>${reimbursement.justification || "No disponible"}</p></br>
+      </body>
+      </html>
+    `;
 
-    doc.setFontSize(12);
-    doc.text("Justificación", 14, y);
-    y += 7;
-    doc.setFontSize(11);
-    doc.text(
-      doc.splitTextToSize(
-        reimbursement.justification || "No disponible",
-        180
-      ),
-      14,
-      y
-    );
+    const opt = {
+      margin: 0.5,
+      filename: "reembolso.pdf",
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
+    };
 
-    doc.save("reembolso.pdf");
+    html2pdf().set(opt).from(template).save();
   };
 
   if (!reimbursement) {
-    return (
-      <div className="p-6">
-        <p className="text-sm text-text-secondary">
-          No hay información de reembolso disponible.
-        </p>
-      </div>
-    );
+    return <div className="p-6">No hay información de reembolso disponible.</div>;
   }
 
   return (
@@ -118,10 +156,10 @@ const ClaimReimbursement = () => {
             <BreadcrumbNavigation />
           </div>
 
-          {/* 🔹 Botones de acciones */}
+          {/* Botones */}
           <div className="mb-4 flex gap-2">
             <button
-              onClick={handleGeneratePDF}
+              onClick={handleDownloadPDF}
               className="px-4 py-2 text-sm rounded-md bg-primary text-white hover:opacity-90"
             >
               Generar PDF
@@ -134,7 +172,7 @@ const ClaimReimbursement = () => {
             </button>
           </div>
 
-          {/* Resumen general */}
+          {/* Vista normal en pantalla */}
           <div className="bg-card border border-border rounded-lg mb-6">
             <div className="p-4 border-b border-border flex items-center gap-2">
               <Icon name="DollarSign" size={18} className="text-primary" />
@@ -157,9 +195,7 @@ const ClaimReimbursement = () => {
                 <div className="text-xs text-text-secondary">
                   Reembolso Solicitado
                 </div>
-                <div className="font-medium">
-                  {formatMoney(requestedAmount)}
-                </div>
+                <div className="font-medium">{formatMoney(requestedAmount)}</div>
               </div>
               <div>
                 <div className="text-xs text-text-secondary">
