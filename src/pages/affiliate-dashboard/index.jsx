@@ -20,6 +20,9 @@ const AffiliateDashboard = () => {
   const [riskWeightDescriptions, setRiskWeightDescriptions] = useState({});
   const [loadingWeights, setLoadingWeights] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [reclamos, setReclamos] = useState([]);
+  const [reclamosMetadata, setReclamosMetadata] = useState({});
+  const [loadingReclamos, setLoadingReclamos] = useState(true);
 
   // ---------------- GET: Cargar pesos desde el backend ----------------
   useEffect(() => {
@@ -50,6 +53,33 @@ const AffiliateDashboard = () => {
     }
 
     fetchRiskWeights();
+  }, []);
+
+  // ---------------- GET: Cargar reclamos desde el backend ----------------
+  useEffect(() => {
+    const fetchReclamos = async () => {
+      try {
+        setLoadingReclamos(true);
+        const response = await fetch('http://127.0.0.1:8005/reclamos');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        setReclamos(data.reclamos || []);
+        setReclamosMetadata(data.metadatos || {});
+      } catch (err) {
+        console.error("Error al cargar reclamos:", err);
+        toast.error("Error al cargar reclamos desde el servidor");
+        // En caso de error, usar datos mock como fallback
+        setReclamos(mockClaims);
+      } finally {
+        setLoadingReclamos(false);
+      }
+    };
+
+    fetchReclamos();
   }, []);
 
   // ---------------- PUT: Guardar cambios ----------------
@@ -86,13 +116,46 @@ const AffiliateDashboard = () => {
     { label: 'Inicio', path: '/affiliate-dashboard', isActive: true }
   ];
 
-  // ---------------- Mock Data ----------------
-  const dashboardMetrics = [
-    { title: 'Total Reclamos', value: '24', subtitle: 'Enviados este mes', icon: 'FileText', color: 'primary' },
-    { title: 'Total Aprobados', value: '18', subtitle: 'Reclamos aprobados', icon: 'CheckCircle', color: 'success' },
-    { title: 'Pendientes de Aprobación', value: '8', subtitle: 'En proceso de revisión', icon: 'Clock', color: 'warning' },
-    { title: 'Monto Aprobado', value: '€4,250.00', subtitle: 'Total reembolsado', icon: 'CreditCard', color: 'accent' }
-  ];
+  // ---------------- Métricas calculadas dinámicamente ----------------
+  const calculateMetrics = (reclamosData) => {
+    if (!reclamosData || reclamosData.length === 0) {
+      return [
+        { title: 'Total Reclamos', value: '0', subtitle: 'Enviados este mes', icon: 'FileText', color: 'primary' },
+        { title: 'Total Aprobados', value: '0', subtitle: 'Reclamos aprobados', icon: 'CheckCircle', color: 'success' },
+        { title: 'Pendientes de Aprobación', value: '0', subtitle: 'En proceso de revisión', icon: 'Clock', color: 'warning' },
+        { title: 'Monto Aprobado', value: '€0.00', subtitle: 'Total reembolsado', icon: 'CreditCard', color: 'accent' }
+      ];
+    }
+
+    const totalReclamos = reclamosData.length;
+    const aprobados = reclamosData.filter(r => 
+      r.estado?.toLowerCase() === 'aprobado' || 
+      r.estado?.toLowerCase() === 'approved'
+    ).length;
+    
+    const pendientes = reclamosData.filter(r => 
+      r.estado?.toLowerCase() === 'en revisión' || 
+      r.estado?.toLowerCase() === 'en revision' ||
+      r.estado?.toLowerCase() === 'submitted' || 
+      r.estado?.toLowerCase() === 'under_review' || 
+      r.estado?.toLowerCase() === 'validation'
+    ).length;
+    
+    const montoAprobado = reclamosData
+      .filter(r => r.estado?.toLowerCase() === 'aprobado' || r.estado?.toLowerCase() === 'approved')
+      .reduce((sum, r) => sum + (parseFloat(r.monto_aprobado) || 0), 0);
+
+    const moneda = reclamosData.length > 0 ? (reclamosData[0].moneda || '€') : '€';
+
+    return [
+      { title: 'Total Reclamos', value: totalReclamos.toString(), subtitle: 'Enviados este mes', icon: 'FileText', color: 'primary' },
+      { title: 'Total Aprobados', value: aprobados.toString(), subtitle: 'Reclamos aprobados', icon: 'CheckCircle', color: 'success' },
+      { title: 'Pendientes de Aprobación', value: pendientes.toString(), subtitle: 'En proceso de revisión', icon: 'Clock', color: 'warning' },
+      { title: 'Monto Aprobado', value: `${moneda}${montoAprobado.toFixed(2)}`, subtitle: 'Total reembolsado', icon: 'CreditCard', color: 'accent' }
+    ];
+  };
+
+  const dashboardMetrics = calculateMetrics(reclamos);
 
   const mockClaims = [
     { id: 1, claimId: 'CLM-2024-001', submissionDate: '2024-08-20', provider: 'Hospital San Juan', serviceType: 'Consulta Especializada', status: 'approved', requestedAmount: 450.00, approvedAmount: 405.00 },
@@ -155,7 +218,7 @@ const AffiliateDashboard = () => {
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             {/* Claims Table */}
             <div className="xl:col-span-6">
-              <ClaimsTable claims={mockClaims} />
+              <ClaimsTable claims={reclamos} metadata={reclamosMetadata} loading={loadingReclamos} />
             </div>
 
             {/* Right Sidebar -> Parametrización */}

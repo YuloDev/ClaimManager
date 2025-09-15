@@ -75,6 +75,7 @@ const ClaimDetails = () => {
     revision: [21, 50],
     rechazado: [51, 100]
   });
+  const [claimSent, setClaimSent] = useState(false);
 
   // Cargar niveles de riesgo desde el servidor
   useEffect(() => {
@@ -90,6 +91,7 @@ const ClaimDetails = () => {
 
     fetchRiskLevels();
   }, []);
+
 
   const N8N_WEBHOOK_URL =
     import.meta.env.VITE_N8N_WEBHOOK_URL ||
@@ -114,6 +116,7 @@ const ClaimDetails = () => {
     : [];
 
   const validated = results;
+
   const formatMoney = (v) =>
     new Intl.NumberFormat('es-EC', {
       style: 'currency',
@@ -179,6 +182,75 @@ const ClaimDetails = () => {
     return styles[levelName] || 'px-2 py-1 rounded-md border border-gray-300 bg-gray-50 text-gray-800 text-xs font-medium';
   };
 
+  // Función para determinar el estado final basándose en las validaciones
+  const determineClaimStatus = () => {
+    if (!validated || validated.length === 0) {
+      return 'En Revisión'; // Estado por defecto si no hay validaciones
+    }
+
+    let hasRechazado = false;
+    let hasEnRevision = false;
+    let hasAprobado = false;
+
+    validated.forEach(doc => {
+      if (doc.validationError) {
+        // Si hay error en la validación, consideramos como rechazado
+        hasRechazado = true;
+        return;
+      }
+
+      const v = doc.validation;
+      if (v?.riesgo?.score !== undefined) {
+        const estado = getStateFromScore(v.riesgo.score);
+        const displayName = getStateDisplayName(estado);
+        
+        if (displayName === 'Rechazado') {
+          hasRechazado = true;
+        } else if (displayName === 'En Revisión') {
+          hasEnRevision = true;
+        } else if (displayName === 'Aprobado') {
+          hasAprobado = true;
+        }
+      } else {
+        // Si no hay score, consideramos como en revisión
+        hasEnRevision = true;
+      }
+    });
+
+    // Lógica de prioridad según los requerimientos:
+    // 1. Si hay al menos un rechazado → Rechazado
+    // 2. Si todos están aprobados y hay al menos uno en revisión → En Revisión  
+    // 3. Si todos están aprobados → Aprobado
+    if (hasRechazado) {
+      return 'Rechazado';
+    } else if (hasEnRevision) {
+      return 'En Revisión';
+    } else if (hasAprobado) {
+      return 'Aprobado';
+    } else {
+      return 'En Revisión'; // Estado por defecto
+    }
+  };
+
+  const buildClaimPayload = () => {
+    const estado = determineClaimStatus();
+    
+    // Extraer información del proveedor desde patientInfo u otro lugar
+    // Por ahora usamos datos de ejemplo, pero podrías ajustar según tu estructura
+    const proveedor = {
+      nombre: patientInfo.fullName || "Proveedor no especificado",
+      tipo_servicio: patientInfo.careType === 'hospitalario' ? 'Consulta Médica' : 'Otro Servicio'
+    };
+
+    return {
+      proveedor,
+      estado,
+      monto_solicitado: parseFloat(diagnosis?.totalAmount || 0),
+      moneda: "$",
+      observaciones: `Reclamo procesado automáticamente. Estado determinado por validaciones: ${validated.length} documento(s) evaluado(s).`
+    };
+  };
+
   const buildWebhookBody = () => {
     return {
       payload: {
@@ -193,6 +265,43 @@ const ClaimDetails = () => {
       },
     };
   };
+
+  // Envío automático del reclamo cuando se obtienen las validaciones
+  const sendClaimToBackend = async () => {
+    try {
+      const claimPayload = buildClaimPayload();
+      console.log('🚀 Enviando reclamo automáticamente:', claimPayload);
+      
+      const CLAIMS_API_URL = 'http://127.0.0.1:8005/reclamos';
+      
+      const res = await fetch(CLAIMS_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(claimPayload),
+      });
+      
+      const data = await res.json().catch(() => ({}));
+      
+      if (!res.ok) {
+        console.error('Error al enviar reclamo automáticamente:', data?.message || `HTTP ${res.status}`);
+        return;
+      }
+      
+      console.log('✅ Reclamo enviado automáticamente al backend');
+      setClaimSent(true); // Marcar como enviado
+      
+    } catch (err) {
+      console.error('❌ Error en envío automático del reclamo:', err);
+    }
+  };
+
+  // Envío automático del reclamo cuando se obtienen las validaciones (solo una vez)
+  useEffect(() => {
+    if (validated && validated.length > 0 && !claimSent) {
+      console.log('🎯 Validaciones obtenidas, enviando reclamo automáticamente...');
+      sendClaimToBackend();
+    }
+  }, [validated, claimSent]);
 
   const handleSendToN8N = async () => {
     setSending(true);
@@ -553,6 +662,26 @@ const ClaimDetails = () => {
                   Evaluadas: {validated.length}
                   <br />
                   Con error: {validated.filter((d) => d.validationError).length}
+                </div>
+                
+                <div className="mt-3 pt-3 border-t border-border">
+                  <div className="text-sm font-semibold mb-2">Estado del reclamo</div>
+                  <div className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+                    determineClaimStatus() === 'Aprobado' 
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                      : determineClaimStatus() === 'En Revisión'
+                      ? 'bg-amber-50 text-amber-800 border border-amber-300'
+                      : 'bg-red-50 text-red-800 border border-red-300'
+                  }`}>
+                    {determineClaimStatus()}
+                  </div>
+                  
+                  {claimSent && (
+                    <div className="mt-2 text-xs text-emerald-600 flex items-center gap-1">
+                      <span>✅</span>
+                      <span>Reclamo enviado automáticamente</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
