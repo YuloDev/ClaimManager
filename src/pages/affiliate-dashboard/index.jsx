@@ -88,10 +88,10 @@ const AffiliateDashboard = () => {
 
   // ---------------- Mock Data ----------------
   const dashboardMetrics = [
-    { title: 'Total Reclamos', value: '24', subtitle: 'Enviados este mes', icon: 'FileText', color: 'primary', trend: 'up', trendValue: '+12%' },
-    { title: 'Pendientes de Aprobación', value: '8', subtitle: 'En proceso de revisión', icon: 'Clock', color: 'warning', trend: 'down', trendValue: '-3%' },
-    { title: 'Monto Aprobado', value: '€4,250.00', subtitle: 'Total reembolsado', icon: 'CreditCard', color: 'success', trend: 'up', trendValue: '+€850' },
-    { title: 'Tiempo Promedio', value: '5.2 días', subtitle: 'Procesamiento promedio', icon: 'TrendingUp', color: 'accent', trend: 'down', trendValue: '-1.3 días' }
+    { title: 'Total Reclamos', value: '24', subtitle: 'Enviados este mes', icon: 'FileText', color: 'primary' },
+    { title: 'Total Aprobados', value: '18', subtitle: 'Reclamos aprobados', icon: 'CheckCircle', color: 'success' },
+    { title: 'Pendientes de Aprobación', value: '8', subtitle: 'En proceso de revisión', icon: 'Clock', color: 'warning' },
+    { title: 'Monto Aprobado', value: '€4,250.00', subtitle: 'Total reembolsado', icon: 'CreditCard', color: 'accent' }
   ];
 
   const mockClaims = [

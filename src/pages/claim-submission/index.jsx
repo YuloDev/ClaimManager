@@ -31,11 +31,11 @@ const initialForm = {
 
 const VALIDATOR_FACTURA_URL =
   import.meta.env.VITE_VALIDATOR_FACTURA_URL ||
-  'https://api-forense.nextisolutions.com/validar-factura';
+  'http://127.0.0.1:8005/validar-factura';
 
 const VALIDATOR_DOC_URL =
   import.meta.env.VITE_VALIDATOR_DOC_URL ||
-  'https://api-forense.nextisolutions.com/validar-documento';
+  'http://127.0.0.1:8005/validar-documento';
 
 const REQUIRED_FIELDS = [
   'patientInfo.fullName',
