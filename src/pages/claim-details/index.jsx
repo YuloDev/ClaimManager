@@ -165,6 +165,20 @@ const ClaimDetails = () => {
     return colors[levelName] || '';
   };
 
+  // Función para obtener las clases de borde y estilo para el nivel
+  const getStateBadgeClass = (levelName) => {
+    const styles = {
+      aprobado: 'px-2 py-1 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs font-medium',
+      revision: 'px-2 py-1 rounded-md border border-amber-300 bg-amber-50 text-amber-800 text-xs font-medium',
+      rechazado: 'px-2 py-1 rounded-md border border-red-300 bg-red-50 text-red-800 text-xs font-medium',
+      // Mapeo para nombres antiguos
+      bajo: 'px-2 py-1 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs font-medium',
+      medio: 'px-2 py-1 rounded-md border border-amber-300 bg-amber-50 text-amber-800 text-xs font-medium',
+      alto: 'px-2 py-1 rounded-md border border-red-300 bg-red-50 text-red-800 text-xs font-medium'
+    };
+    return styles[levelName] || 'px-2 py-1 rounded-md border border-gray-300 bg-gray-50 text-gray-800 text-xs font-medium';
+  };
+
   const buildWebhookBody = () => {
     return {
       payload: {
@@ -309,13 +323,24 @@ const ClaimDetails = () => {
                         {!hasError && v?.mensaje && (
 
                           <div className="mt-3 p-3 rounded-md border border-border bg-muted/30">
-                            <div className="flex justify-between text-sm font-medium mb-2">
+                            <div className="flex justify-between items-center text-sm font-medium mb-2">
                               <span>Score: <span className="font-bold">{v?.riesgo?.score ?? "—"}</span></span>
-                              <span>Nivel: <span className="font-medium">{
-                                v?.riesgo?.score !== undefined 
-                                  ? getStateDisplayName(getStateFromScore(v.riesgo.score))
-                                  : (v?.riesgo?.nivel ? getStateDisplayName(v.riesgo.nivel) : "—")
-                              }</span></span>
+                              <div className="flex items-center gap-2">
+                                <span>Nivel:</span>
+                                <span className={
+                                  v?.riesgo?.score !== undefined 
+                                    ? getStateBadgeClass(getStateFromScore(v.riesgo.score))
+                                    : (v?.riesgo?.nivel 
+                                        ? getStateBadgeClass(v.riesgo.nivel) 
+                                        : 'px-2 py-1 rounded-md border border-gray-300 bg-gray-50 text-gray-800 text-xs font-medium'
+                                      )
+                                }>
+                                  {v?.riesgo?.score !== undefined 
+                                    ? getStateDisplayName(getStateFromScore(v.riesgo.score))
+                                    : (v?.riesgo?.nivel ? getStateDisplayName(v.riesgo.nivel) : "—")
+                                  }
+                                </span>
+                              </div>
                             </div>
 
                             {/* Tabla de rangos */}

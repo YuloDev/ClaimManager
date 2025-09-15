@@ -17,6 +17,7 @@ const AffiliateDashboard = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [currentLanguage, setCurrentLanguage] = useState('es');
   const [riskWeights, setRiskWeights] = useState({});
+  const [riskWeightDescriptions, setRiskWeightDescriptions] = useState({});
   const [loadingWeights, setLoadingWeights] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -24,8 +25,16 @@ const AffiliateDashboard = () => {
   useEffect(() => {
     const fetchRiskWeights = async () => {
       try {
-        const weights = await riskService.getRiskWeights();
-        setRiskWeights(weights);
+        const data = await riskService.getRiskWeights();
+        // Si recibimos el formato nuevo con descripciones
+        if (data.RISK_WEIGHTS && data.RISK_WEIGHTS_DESCRIPTIONS) {
+          setRiskWeights(data.RISK_WEIGHTS);
+          setRiskWeightDescriptions(data.RISK_WEIGHTS_DESCRIPTIONS);
+        } else {
+          // Formato anterior solo con pesos
+          setRiskWeights(data);
+          setRiskWeightDescriptions({});
+        }
       } catch (err) {
         console.error("Error al cargar pesos de riesgo:", err);
         toast.error("Error al cargar pesos de riesgo");
@@ -162,26 +171,39 @@ const AffiliateDashboard = () => {
                 ) : (
                   <>
                     <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {Object.entries(riskWeights).map(([key, value]) => (
-                        <div key={key} className="flex items-center justify-between border-b border-border pb-2">
-                          <span className="text-sm font-medium">{key}</span>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleDecrement(key)}
-                              className="px-2 py-1 text-xs bg-rose-100 text-rose-800 rounded hover:bg-rose-200"
-                            >
-                              -
-                            </button>
-                            <span className="w-10 text-center">{value}</span>
-                            <button
-                              onClick={() => handleIncrement(key)}
-                              className="px-2 py-1 text-xs bg-emerald-100 text-emerald-800 rounded hover:bg-emerald-200"
-                            >
-                              +
-                            </button>
+                      {Object.entries(riskWeights).map(([key, value]) => {
+                        const description = riskWeightDescriptions[key];
+                        return (
+                          <div key={key} className="border-b border-border pb-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm font-medium">{key}</span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleDecrement(key)}
+                                  className="px-2 py-1 text-xs bg-rose-100 text-rose-800 rounded hover:bg-rose-200"
+                                >
+                                  -
+                                </button>
+                                <span className="w-10 text-center">{value}</span>
+                                <button
+                                  onClick={() => handleIncrement(key)}
+                                  className="px-2 py-1 text-xs bg-emerald-100 text-emerald-800 rounded hover:bg-emerald-200"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                            {description && (
+                              <div className="text-xs text-text-secondary mt-1">
+                                <p className="font-medium">{description.descripcion}</p>
+                                {description.explicacion && (
+                                  <p className="mt-1 italic">{description.explicacion}</p>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                     <div className="mt-4 flex justify-end">
                       <button

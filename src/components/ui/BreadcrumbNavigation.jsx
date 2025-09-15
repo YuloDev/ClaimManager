@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../AppIcon';
 import Button from './Button';
 
@@ -8,6 +8,7 @@ const BreadcrumbNavigation = ({
   className = '' 
 }) => {
   const location = useLocation();
+  const navigate = useNavigate();
 
   const routeMap = {
     '/affiliate-dashboard': { label: 'Dashboard', parent: null },
@@ -54,8 +55,7 @@ const BreadcrumbNavigation = ({
   const breadcrumbs = generateBreadcrumbs();
 
   const handleBreadcrumbClick = (path) => {
-    // Navigation logic would be handled by React Router
-    console.log(`Navigating to: ${path}`);
+    navigate(path);
   };
 
   if (breadcrumbs?.length <= 1) {

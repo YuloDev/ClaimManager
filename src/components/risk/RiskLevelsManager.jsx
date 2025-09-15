@@ -19,7 +19,7 @@ const RiskLevelsManager = () => {
       setLoading(true);
       setIsUsingDefaults(false);
       
-      const response = await fetch('https://api-forense.nextisolutions.com/risk-levels');
+      const response = await fetch('http://127.0.0.1:8005/risk-levels');
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -319,7 +319,7 @@ const RiskLevelsManager = () => {
           <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded">
             <p className="text-amber-800 font-medium">⚠️ Modo sin conexión</p>
             <p className="text-amber-700">
-              No se pudo conectar con el servidor de producción. Los cambios no se guardarán hasta restablecer la conexión.
+              No se pudo conectar con el servidor local. Los cambios no se guardarán hasta restablecer la conexión.
             </p>
           </div>
         )}

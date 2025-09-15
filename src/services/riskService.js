@@ -1,5 +1,6 @@
 // Servicio para gestión de riesgo (pesos y niveles)
-const API_BASE_URL = 'https://api-forense.nextisolutions.com';
+const API_BASE_URL = 'http://127.0.0.1:8005';
+//https://api-forense.nextisolutions.com
 
 export const riskService = {
   // ---------------- PESOS DE RIESGO ----------------
@@ -12,7 +13,19 @@ export const riskService = {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      return data?.RISK_WEIGHTS || {};
+      
+      // Si el formato incluye descripciones, devolver todo el objeto
+      if (data?.RISK_WEIGHTS && data?.RISK_WEIGHTS_DESCRIPTIONS) {
+        return data;
+      }
+      
+      // Si solo tiene RISK_WEIGHTS, devolverlo
+      if (data?.RISK_WEIGHTS) {
+        return data.RISK_WEIGHTS;
+      }
+      
+      // Formato anterior, devolver directamente
+      return data || {};
     } catch (error) {
       console.error('Error al obtener pesos de riesgo:', error);
       throw new Error('No se pudieron cargar los pesos de riesgo');
