@@ -70,6 +70,17 @@ const RiskLevelsManager = () => {
   };
 
   const handleLevelChange = (levelName, type, value) => {
+    // Permitir valores vacíos temporalmente para facilitar la edición
+    if (value === '' || value === null || value === undefined) {
+      setRiskLevels(prev => ({
+        ...prev,
+        [levelName]: type === 'min' 
+          ? ['', prev[levelName][1]]
+          : [prev[levelName][0], '']
+      }));
+      return;
+    }
+
     const numValue = parseInt(value, 10);
     if (isNaN(numValue) || numValue < 0 || numValue > 100) {
       return; // No actualizar si el valor no es válido
@@ -224,14 +235,23 @@ const RiskLevelsManager = () => {
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-medium w-12">Mín:</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={min}
-                    onChange={(e) => handleLevelChange(levelName, 'min', e.target.value)}
-                    className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={min === '' ? '' : min}
+                              onChange={(e) => handleLevelChange(levelName, 'min', e.target.value)}
+                              onBlur={(e) => {
+                                // Si está vacío al perder el foco, restaurar el valor anterior
+                                if (e.target.value === '') {
+                                  const currentValues = Object.values(riskLevels);
+                                  const minValues = currentValues.map(range => typeof range[0] === 'number' ? range[0] : 0);
+                                  const minValid = Math.min(...minValues);
+                                  handleLevelChange(levelName, 'min', minValid.toString());
+                                }
+                              }}
+                              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                            />
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-medium w-12">Máx:</label>
@@ -239,8 +259,17 @@ const RiskLevelsManager = () => {
                     type="number"
                     min="0"
                     max="100"
-                    value={max}
+                    value={max === '' ? '' : max}
                     onChange={(e) => handleLevelChange(levelName, 'max', e.target.value)}
+                    onBlur={(e) => {
+                      // Si está vacío al perder el foco, restaurar un valor válido
+                      if (e.target.value === '') {
+                        const currentValues = Object.values(riskLevels);
+                        const maxValues = currentValues.map(range => typeof range[1] === 'number' ? range[1] : 100);
+                        const maxValid = Math.max(...maxValues);
+                        handleLevelChange(levelName, 'max', maxValid.toString());
+                      }
+                    }}
                     className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
