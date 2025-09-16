@@ -31,11 +31,11 @@ const initialForm = {
 
 const VALIDATOR_FACTURA_URL =
   import.meta.env.VITE_VALIDATOR_FACTURA_URL ||
-  'http://127.0.0.1:8001/validar-factura';
+  'https://api-forense.nextisolutions.com/validar-factura';
 
 const VALIDATOR_DOC_URL =
   import.meta.env.VITE_VALIDATOR_DOC_URL ||
-  'http://127.0.0.1:8001/validar-documento';
+  'https://api-forense.nextisolutions.com/validar-documento';
 
 const REQUIRED_FIELDS = [
   'patientInfo.fullName',
@@ -177,43 +177,27 @@ const ClaimSubmission = () => {
   }, [formData, uploadedFiles]);
 
 
-// 🔧 helper: normaliza el string para comparar "Alineación de elementos de texto"
-const normalize = (s = '') =>
-  String(s).normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
 
-function mergeAlignmentFromOverlay(mainData, overlayBlock) {
-  if (!mainData || !overlayBlock) return mainData;
-
-  const checkLabel = 'Alineación de elementos de texto';
-  const sec = (mainData.riesgo = mainData.riesgo || {}, mainData.riesgo.secundarias || []);
-  mainData.riesgo.secundarias = sec; // aseguro referencia
-
-  const idx = sec.findIndex((it) => normalize(it?.check) === normalize(checkLabel));
-
-  const mergedItem = {
-    check: checkLabel,
-    // meto todo lo útil del endpoint en "detalle" para no romper el shape previo
-    detalle: {
-      ...(overlayBlock.detalle || {}),
-      alertas: overlayBlock.alertas || [],
-      texto_sobrepuesto_detectado: !!overlayBlock.texto_sobrepuesto_detectado,
-    },
-    // si no vino penalización, conservo la anterior (por si acaso)
-    penalizacion:
-      overlayBlock.penalizacion ??
-      (idx >= 0 ? sec[idx]?.penalizacion : undefined),
-  };
-
-  if (idx >= 0) sec[idx] = mergedItem;
-  else sec.push(mergedItem);
-
-  // (Opcional) Sincroniza también el flag en el análisis de capas, si existe.
-  if (mainData?.riesgo?.analisis_capas?.superposicion_texto) {
-    mainData.riesgo.analisis_capas.superposicion_texto.has_overlapping =
-      !!overlayBlock.texto_sobrepuesto_detectado;
+// Función auxiliar para hacer peticiones con retry en caso de errores de CORS
+async function fetchWithRetry(url, options, maxRetries = 3, delay = 1000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Si es un error de CORS o de red, esperamos antes del retry
+      if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
+        console.warn(`❯ Intento ${attempt} falló, reintentando en ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay * attempt));
+      } else {
+        throw error;
+      }
+    }
   }
-
-  return mainData;
 }
 
 async function validateDocumento(pdfBase64, documentType) {
@@ -223,31 +207,26 @@ async function validateDocumento(pdfBase64, documentType) {
       : VALIDATOR_DOC_URL;
 
   try {
-    // ▶️ Llamadas en paralelo, las dos con { pdfbase64 }
-    const [mainRes, overlayRes] = await Promise.all([
-      fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ pdfbase64: pdfBase64 }),
-      }),
-      fetch('http://127.0.0.1:8001/api/detectar_texto_sobrepuesto', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ pdfbase64: pdfBase64 }),
-      }),
-    ]);
+    // ▶️ Hacer las peticiones de forma secuencial para evitar sobrecarga del servidor
+    console.log(`🔍 Validando documento tipo: ${documentType}`);
+    
+    // Primera petición: validación principal
+    const mainRes = await fetchWithRetry(url, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json', 
+        'accept': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify({ pdfbase64: pdfBase64 }),
+    });
 
     const mainData = await mainRes.json().catch(() => ({}));
-    const overlayData = await overlayRes.json().catch(() => ({}));
 
     if (!mainRes.ok) {
       throw new Error(mainData?.detail || mainData?.message || 'Error al validar documento');
     }
 
-    // 🧩 Reemplazo del bloque "Alineación de elementos de texto" + penalización
-    if (overlayRes.ok && overlayData) {
-      mergeAlignmentFromOverlay(mainData, overlayData);
-    }
 
     return mainData;
   } catch (err) {
@@ -272,26 +251,33 @@ async function validateDocumento(pdfBase64, documentType) {
       // 1) Construir payload con base64
       const jsonBody = await buildJsonPayload(formData, uploadedFiles);
 
-      // 2) Validar en el API cada documento según su tipo
-      const results = await Promise.all(
-        jsonBody.files.map(async (f) => {
-          const meta = {
-            index: f.index,
-            filename: f.filename,
-            mimeType: f.mimeType,
-            size: f.size,
-            documentType: f.documentType,
-          };
+      // 2) Validar en el API cada documento según su tipo (secuencialmente para evitar CORS)
+      const results = [];
+      for (let i = 0; i < jsonBody.files.length; i++) {
+        const f = jsonBody.files[i];
+        const meta = {
+          index: f.index,
+          filename: f.filename,
+          mimeType: f.mimeType,
+          size: f.size,
+          documentType: f.documentType,
+        };
 
-          try {
-            // ✅ Aquí elegimos el endpoint según el tipo de documento
-            const validation = await validateDocumento(f.base64, f.documentType);
-            return { ...meta, validation, skipped: false };
-          } catch (err) {
-            return { ...meta, validationError: String(err?.message || err), skipped: false };
+        try {
+          console.log(`📄 Procesando documento ${i + 1}/${jsonBody.files.length}: ${f.filename}`);
+          // ✅ Aquí elegimos el endpoint según el tipo de documento
+          const validation = await validateDocumento(f.base64, f.documentType);
+          results.push({ ...meta, validation, skipped: false });
+          
+          // Pequeño delay entre documentos para no sobrecargar el servidor
+          if (i < jsonBody.files.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
           }
-        })
-      );
+        } catch (err) {
+          console.error(`❌ Error validando ${f.filename}:`, err);
+          results.push({ ...meta, validationError: String(err?.message || err), skipped: false });
+        }
+      }
 
       // 3) Adjuntar también los archivos como attachments (truncados si no son facturas)
       const TRUNCATE_BASE64 = true;

@@ -63,6 +63,36 @@ const RenderDetalle = ({ detalle }) => {
   return <span>{String(detalle)}</span>;
 };
 
+// 🔹 Función para verificar si un detalle está vacío (recursiva)
+const isDetalleEmpty = (detalle) => {
+  if (detalle === null || detalle === undefined) return true;
+  
+  if (typeof detalle === 'string') {
+    return detalle.trim() === '' || detalle === '[vacío]';
+  }
+  
+  if (typeof detalle === 'number') {
+    return false; // Los números siempre se consideran no vacíos
+  }
+  
+  if (typeof detalle === 'boolean') {
+    return false; // Los booleanos siempre se consideran no vacíos
+  }
+  
+  if (Array.isArray(detalle)) {
+    return detalle.length === 0;
+  }
+  
+  if (typeof detalle === 'object') {
+    if (Object.keys(detalle).length === 0) return true;
+    
+    // Verificar recursivamente si todos los valores del objeto están vacíos
+    return Object.values(detalle).every(value => isDetalleEmpty(value));
+  }
+  
+  return false;
+};
+
 const ClaimDetails = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -76,6 +106,13 @@ const ClaimDetails = () => {
     rechazado: [51, 100],
   });
   const [claimSent, setClaimSent] = useState(false);
+  const [activeTab, setActiveTab] = useState('todas'); // Estado para el tab activo
+
+const getAdjustedScore = (doc) => {
+  return Number(doc?.validation?.riesgo?.score ?? 0);
+};
+
+
 
   // Cargar niveles de riesgo desde el servidor
   useEffect(() => {
@@ -110,33 +147,6 @@ const ClaimDetails = () => {
   const attachments = Array.isArray(apiResponse?.attachments) ? apiResponse.attachments : [];
 
   const validated = results;
-
-  // 👇 Procesamiento para reemplazar detalle de alineación
-const processedValidated = useMemo(() => {
-  return (validated || []).map((doc) => {
-    if (doc?.validation?.riesgo?.secundarias) {
-      doc.validation.riesgo.secundarias =
-        doc.validation.riesgo.secundarias.map((s) => {
-          if (
-            s.check &&
-            s.check.toLowerCase().includes('alineación de elementos de texto')
-          ) {
-            const flag =
-              s.detalle?.texto_sobrepuesto_detectado ??
-              doc?.validation?.texto_sobrepuesto?.texto_sobrepuesto_detectado ??
-              false;
-
-            return {
-              ...s,
-              detalle: { texto_sobrepuesto_detectado: flag },
-            };
-          }
-          return s;
-        });
-    }
-    return doc;
-  });
-}, [validated]);
 
 
   const formatMoney = (v) =>
@@ -207,47 +217,36 @@ const processedValidated = useMemo(() => {
   };
 
   const determineClaimStatus = () => {
-    if (!validated || validated.length === 0) {
-      return 'En Revisión';
-    }
-
+    if (!validated || validated.length === 0) return 'En Revisión';
+  
     let hasRechazado = false;
     let hasEnRevision = false;
     let hasAprobado = false;
-
+  
     validated.forEach((doc) => {
       if (doc.validationError) {
         hasRechazado = true;
         return;
       }
-
       const v = doc.validation;
-      if (v?.riesgo?.score !== undefined) {
-        const estado = getStateFromScore(v.riesgo.score);
+      if (v?.riesgo) {
+        const score = getAdjustedScore(doc); // 👈 ajustado
+        const estado = getStateFromScore(score);
         const displayName = getStateDisplayName(estado);
-
-        if (displayName === 'Rechazado') {
-          hasRechazado = true;
-        } else if (displayName === 'En Revisión') {
-          hasEnRevision = true;
-        } else if (displayName === 'Aprobado') {
-          hasAprobado = true;
-        }
+        if (displayName === 'Rechazado') hasRechazado = true;
+        else if (displayName === 'En Revisión') hasEnRevision = true;
+        else if (displayName === 'Aprobado') hasAprobado = true;
       } else {
         hasEnRevision = true;
       }
     });
-
-    if (hasRechazado) {
-      return 'Rechazado';
-    } else if (hasEnRevision) {
-      return 'En Revisión';
-    } else if (hasAprobado) {
-      return 'Aprobado';
-    } else {
-      return 'En Revisión';
-    }
+  
+    if (hasRechazado) return 'Rechazado';
+    if (hasEnRevision) return 'En Revisión';
+    if (hasAprobado) return 'Aprobado';
+    return 'En Revisión';
   };
+  
 
   const buildClaimPayload = () => {
     const estado = determineClaimStatus();
@@ -288,7 +287,7 @@ const processedValidated = useMemo(() => {
       const claimPayload = buildClaimPayload();
       console.log('🚀 Enviando reclamo automáticamente:', claimPayload);
 
-      const CLAIMS_API_URL = 'http://127.0.0.1:8001/reclamos';
+      const CLAIMS_API_URL = 'https://api-forense.nextisolutions.com/reclamos';
 
       const res = await fetch(CLAIMS_API_URL, {
         method: 'POST',
@@ -406,6 +405,7 @@ const processedValidated = useMemo(() => {
                 </div>
               </div>
 
+
               {/* Resultado de validación */}
               <div className="bg-card border border-border rounded-lg">
                 <div className="p-4 border-b border-border flex items-center justify-between">
@@ -416,18 +416,18 @@ const processedValidated = useMemo(() => {
                     </h3>
                   </div>
                   <div className="text-xs text-text-secondary">
-                    {processedValidated.length} documento(s) evaluado(s)
+                    {validated.length} documento(s) evaluado(s)
                   </div>
                 </div>
 
                 <div className="divide-y divide-border">
-                  {processedValidated.length === 0 && (
+                  {validated.length === 0 && (
                     <div className="p-4 text-sm text-text-secondary italic">
                       No hay facturas para validar.
                     </div>
                   )}
 
-                  {processedValidated.map((doc, idx) => {
+                  {validated.map((doc, idx) => {
                     const v = doc.validation;
                     const hasError = !!doc.validationError;
 
@@ -451,7 +451,7 @@ const processedValidated = useMemo(() => {
                               <span>
                                 Score:{' '}
                                 <span className="font-bold">
-                                  {v?.riesgo?.score ?? '—'}
+                                  {getAdjustedScore(doc)}
                                 </span>
                               </span>
                               <div className="flex items-center gap-2">
@@ -477,6 +477,71 @@ const processedValidated = useMemo(() => {
                                 </span>
                               </div>
                             </div>
+                            
+                            {/* Tabla de Niveles de Riesgo para este documento */}
+                            <div className="mt-3 pt-3 border-t border-border">
+                              <div className="text-xs font-medium mb-2 text-text-secondary">Niveles de Riesgo</div>
+                              <div className="overflow-hidden rounded border border-border">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="bg-muted/50 border-b border-border">
+                                      <th className="px-3 py-2 text-left font-medium">Nivel</th>
+                                      <th className="px-3 py-2 text-center font-medium">Rango</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {Object.entries(riskLevels).map(([levelName, [min, max]]) => {
+                                      const currentScore = getAdjustedScore(doc);
+                                      const currentLevel = getStateFromScore(currentScore);
+                                      const isCurrentLevel = currentLevel === levelName;
+                                      
+                                      const getLevelIcon = (levelName) => {
+                                        const icons = {
+                                          aprobado: '✅',
+                                          revision: '⏳', 
+                                          rechazado: '❌',
+                                          bajo: '✅',
+                                          medio: '⏳',
+                                          alto: '❌'
+                                        };
+                                        return icons[levelName] || '⚪';
+                                      };
+
+                                      const getRowClass = (isActive) => {
+                                        if (!isActive) return 'opacity-50';
+                                        
+                                        const colors = {
+                                          aprobado: 'bg-emerald-50',
+                                          revision: 'bg-amber-50',
+                                          rechazado: 'bg-red-50',
+                                          bajo: 'bg-emerald-50',
+                                          medio: 'bg-amber-50',
+                                          alto: 'bg-red-50'
+                                        };
+                                        return colors[levelName] || 'bg-gray-50';
+                                      };
+
+                                      return (
+                                        <tr 
+                                          key={levelName}
+                                          className={`border-b border-border last:border-b-0 transition-all duration-200 ${getRowClass(isCurrentLevel)}`}
+                                        >
+                                          <td className="px-3 py-2">
+                                            <div className="flex items-center gap-2">
+                                              <span>{getLevelIcon(levelName)}</span>
+                                              <span className="font-medium">{getStateDisplayName(levelName)}</span>
+                                            </div>
+                                          </td>
+                                          <td className="px-3 py-2 text-center font-mono">
+                                            {min} - {max}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
                           </div>
                         )}
 
@@ -492,98 +557,136 @@ const processedValidated = useMemo(() => {
                               Ver detalle técnico
                             </summary>
 
-                            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {/* Prioritarias */}
-                              <div className="rounded-md border border-border p-3">
-                                <div className="text-xs font-medium mb-2">
-                                  Revisiones MetaData primarias
+                            <div className="mt-3">
+                              {/* Tabs para filtrar por tipo */}
+                              <div className="mb-4">
+                                <div className="flex border-b border-border">
+                                  {[
+                                    { key: 'todas', label: 'Todas', count: [...(v?.riesgo?.prioritarias || []), ...(v?.riesgo?.secundarias || []), ...(v?.riesgo?.adicionales || [])].length },
+                                    { key: 'primaria', label: 'Primarias', count: (v?.riesgo?.prioritarias || []).length },
+                                    { key: 'secundaria', label: 'Secundarias', count: (v?.riesgo?.secundarias || []).length },
+                                    { key: 'adicional', label: 'Adicionales', count: (v?.riesgo?.adicionales || []).length }
+                                  ].map(tab => (
+                                    <button
+                                      key={tab.key}
+                                      onClick={() => setActiveTab(tab.key)}
+                                      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                                        activeTab === tab.key
+                                          ? 'border-primary text-primary bg-primary/5'
+                                          : 'border-transparent text-text-secondary hover:text-foreground hover:border-border'
+                                      }`}
+                                    >
+                                      {tab.label}
+                                      {tab.count > 0 && (
+                                        <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
+                                          activeTab === tab.key
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'bg-muted text-text-secondary'
+                                        }`}>
+                                          {tab.count}
+                                        </span>
+                                      )}
+                                    </button>
+                                  ))}
                                 </div>
-                                <ul className="space-y-2 text-sm">
-                                  {(v?.riesgo?.prioritarias || []).map(
-                                    (p, i) => (
-                                      <li
-                                        key={i}
-                                        className="border-b last:border-0 border-border pb-2"
-                                      >
-                                        <div className="font-medium">{p.check}</div>
-                                        <div className="text-text-secondary">
-                                          <RenderDetalle detalle={p.detalle} />
-                                        </div>
-                                        <div className="text-xs">
-                                          Penalización: {p.penalizacion}
-                                        </div>
-                                      </li>
-                                    )
-                                  )}
-                                  {(v?.riesgo?.prioritarias || []).length ===
-                                    0 && (
-                                    <li className="text-text-secondary italic">
-                                      Sin observaciones.
-                                    </li>
-                                  )}
-                                </ul>
                               </div>
 
-                              {/* Secundarias */}
-                              <div className="rounded-md border border-border p-3">
-                                <div className="text-xs font-medium mb-2">
-                                  Revisiones MetaData secundarias
-                                </div>
-                                <ul className="space-y-2 text-sm">
-                                  {(v?.riesgo?.secundarias || []).map(
-                                    (p, i) => (
-                                      <li
-                                        key={i}
-                                        className="border-b last:border-0 border-border pb-2"
-                                      >
-                                        <div className="font-medium">{p.check}</div>
-                                        <div className="text-text-secondary">
-                                          <RenderDetalle detalle={p.detalle} />
+                              {/* Lista filtrada de revisiones */}
+                              <div className="space-y-2">
+                                {(() => {
+                                  const allItems = [
+                                    ...(v?.riesgo?.prioritarias || []).map(item => ({ ...item, type: 'Primaria' })),
+                                    ...(v?.riesgo?.secundarias || []).map(item => ({ ...item, type: 'Secundaria' })),
+                                    ...(v?.riesgo?.adicionales || []).map(item => ({ ...item, type: 'Adicional' }))
+                                  ];
+                                  
+                                  const filteredItems = activeTab === 'todas' 
+                                    ? allItems
+                                    : allItems.filter(item => item.type.toLowerCase() === activeTab);
+                                  
+                                  return filteredItems;
+                                })().map((item, index) => (
+                                  <details key={index} className="border border-border rounded-lg overflow-hidden group">
+                                    <summary className="cursor-pointer p-3 hover:bg-muted/30 transition-colors flex items-center justify-between">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                            item.type === 'Primaria' ? 'bg-red-100 text-red-800' :
+                                            item.type === 'Secundaria' ? 'bg-amber-100 text-amber-800' :
+                                            'bg-blue-100 text-blue-800'
+                                          }`}>
+                                            {item.type}
+                                          </span>
+                                          <span className={`text-xs px-2 py-0.5 rounded font-mono ${
+                                            item.penalizacion > 0 ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
+                                          }`}>
+                                            {item.penalizacion > 0 ? `+${item.penalizacion}` : '0'}
+                                          </span>
+                                        </div>
+                                        <div className="text-sm font-medium text-foreground">
+                                          {item.check}
+                                        </div>
+                                      </div>
+                                      <div className="ml-3 flex-shrink-0">
+                                        <div className="px-3 py-1 text-xs bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity flex items-center gap-1">
+                                          <span>Detalle</span>
+                                          <span className="transition-transform group-open:rotate-180">▼</span>
+                                        </div>
+                                      </div>
+                                    </summary>
+                                    
+                                    {/* Contenido expandible debajo */}
+                                    <div className="px-3 pb-3 border-t border-border bg-muted/20">
+                                      <div className="pt-3 space-y-2">
+                                        <div className="text-xs">
+                                          <span className="font-medium text-text-secondary">Revisión:</span>
+                                          <span className="ml-2">{item.type} - {item.check}</span>
                                         </div>
                                         <div className="text-xs">
-                                          Penalización: {p.penalizacion}
+                                          <span className="font-medium text-text-secondary">Penalización:</span>
+                                          <span className="ml-2 font-mono">{item.penalizacion}</span>
                                         </div>
-                                      </li>
-                                    )
-                                  )}
-                                  {(v?.riesgo?.secundarias || []).length ===
-                                    0 && (
-                                    <li className="text-text-secondary italic">
-                                      Sin observaciones.
-                                    </li>
-                                  )}
-                                </ul>
-                              </div>
-
-                              {/* Adicionales */}
-                              <div className="rounded-md border border-border p-3 md:col-span-2">
-                                <div className="text-xs font-medium mb-2">
-                                  Revisiones adicionales
-                                </div>
-                                <ul className="space-y-2 text-sm">
-                                  {(v?.riesgo?.adicionales || []).map(
-                                    (p, i) => (
-                                      <li
-                                        key={i}
-                                        className="border-b last:border-0 border-border pb-2"
-                                      >
-                                        <div className="font-medium">{p.check}</div>
-                                        <div className="text-text-secondary">
-                                          <RenderDetalle detalle={p.detalle} />
-                                        </div>
-                                        <div className="text-xs">
-                                          Penalización: {p.penalizacion}
-                                        </div>
-                                      </li>
-                                    )
-                                  )}
-                                  {(v?.riesgo?.adicionales || []).length ===
-                                    0 && (
-                                    <li className="text-text-secondary italic">
-                                      Sin observaciones.
-                                    </li>
-                                  )}
-                                </ul>
+                                        {!isDetalleEmpty(item.detalle) && (
+                                          <div className="text-xs">
+                                            <div className="font-medium text-text-secondary mb-1">Detalle técnico:</div>
+                                            <div className="p-2 bg-card border border-border rounded text-xs">
+                                              <RenderDetalle detalle={item.detalle} />
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </details>
+                                ))}
+                                
+                                {/* Mensaje cuando no hay revisiones */}
+                                {(() => {
+                                  const allItems = [
+                                    ...(v?.riesgo?.prioritarias || []).map(item => ({ ...item, type: 'Primaria' })),
+                                    ...(v?.riesgo?.secundarias || []).map(item => ({ ...item, type: 'Secundaria' })),
+                                    ...(v?.riesgo?.adicionales || []).map(item => ({ ...item, type: 'Adicional' }))
+                                  ];
+                                  
+                                  const filteredItems = activeTab === 'todas' 
+                                    ? allItems
+                                    : allItems.filter(item => item.type.toLowerCase() === activeTab);
+                                  
+                                  if (filteredItems.length === 0) {
+                                    const messages = {
+                                      todas: 'Sin observaciones técnicas',
+                                      primaria: 'Sin revisiones primarias',
+                                      secundaria: 'Sin revisiones secundarias',
+                                      adicional: 'Sin revisiones adicionales'
+                                    };
+                                    
+                                    return (
+                                      <div className="text-center py-6 text-text-secondary italic">
+                                        {messages[activeTab] || 'Sin observaciones'}
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </div>
                             </div>
                           </details>
@@ -633,35 +736,95 @@ const processedValidated = useMemo(() => {
                   Resumen de validación
                 </div>
                 <div className="text-sm text-text-secondary">
-                  Evaluadas: {processedValidated.length}
+                  Evaluadas: {validated.length}
                   <br />
                   Con error:{' '}
-                  {processedValidated.filter((d) => d.validationError).length}
+                  {validated.filter((d) => d.validationError).length}
                 </div>
 
-                <div className="mt-3 pt-3 border-t border-border">
-                  <div className="text-sm font-semibold mb-2">
-                    Estado del reclamo
-                  </div>
-                  <div
-                    className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
-                      determineClaimStatus() === 'Aprobado'
-                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                        : determineClaimStatus() === 'En Revisión'
-                        ? 'bg-amber-50 text-amber-800 border border-amber-300'
-                        : 'bg-red-50 text-red-800 border border-red-300'
-                    }`}
-                  >
-                    {determineClaimStatus()}
-                  </div>
-
-                  {claimSent && (
-                    <div className="mt-2 text-xs text-emerald-600 flex items-center gap-1">
+                {claimSent && (
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <div className="text-xs text-emerald-600 flex items-center gap-1">
                       <span>✅</span>
                       <span>Reclamo enviado automáticamente</span>
                     </div>
-                  )}
+                  </div>
+                )}
+              </div>
+
+              {/* Promedio de Riesgo */}
+              <div className="bg-card border border-border rounded-lg p-4">
+                <div className="text-sm font-semibold mb-2 flex items-center gap-2">
+                  <Icon name="BarChart3" size={16} className="text-primary" />
+                  Promedio de Riesgo
                 </div>
+                {(() => {
+                  // Calcular promedio de riesgo
+                  const validDocs = validated.filter(doc => !doc.validationError && doc.validation?.riesgo?.score !== undefined);
+                  
+                  if (validDocs.length === 0) {
+                    return (
+                      <div className="text-sm text-text-secondary italic">
+                        No hay documentos válidos para calcular promedio
+                      </div>
+                    );
+                  }
+
+                  const totalScore = validDocs.reduce((sum, doc) => sum + getAdjustedScore(doc), 0);
+                  const averageScore = Math.round(totalScore / validDocs.length);
+                  const averageLevel = getStateFromScore(averageScore);
+                  const averageDisplayName = getStateDisplayName(averageLevel);
+
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-text-secondary">Score promedio:</span>
+                        <span className="text-lg font-bold text-foreground">{averageScore}</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-text-secondary">Nivel promedio:</span>
+                        <span className={getStateBadgeClass(averageLevel)}>
+                          {averageDisplayName}
+                        </span>
+                      </div>
+
+                      <div className="text-xs text-text-secondary pt-2 border-t border-border">
+                        Calculado sobre {validDocs.length} documento{validDocs.length !== 1 ? 's' : ''} válido{validDocs.length !== 1 ? 's' : ''}
+                      </div>
+
+                      {/* Distribución por archivo */}
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-text-secondary hover:text-foreground py-1">
+                          Ver distribución por archivo
+                        </summary>
+                        <div className="mt-2 space-y-1 pl-2">
+                          {validDocs.map((doc, idx) => {
+                            const score = getAdjustedScore(doc);
+                            const level = getStateFromScore(score);
+                            return (
+                              <div key={idx} className="flex items-center justify-between text-xs">
+                                <span className="truncate max-w-[180px]" title={doc.filename}>
+                                  {doc.filename}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono">{score}</span>
+                                  <span className={`px-1 py-0.5 rounded text-xs ${
+                                    level === 'aprobado' || level === 'bajo' ? 'bg-emerald-100 text-emerald-800' :
+                                    level === 'revision' || level === 'medio' ? 'bg-amber-100 text-amber-800' :
+                                    'bg-red-100 text-red-800'
+                                  }`}>
+                                    {getStateDisplayName(level)}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </details>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
