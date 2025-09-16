@@ -139,7 +139,7 @@ const ClaimsTable = ({ claims = [], metadata = {}, loading = false, className = 
 
   const formatCurrency = (amount, currency = '$') => {
     if (currency === '$') {
-      return `$${amount?.toFixed(2)}`;
+      return `$${amount?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
     return new Intl.NumberFormat('es-ES', {
       style: 'currency',
@@ -284,14 +284,14 @@ const ClaimsTable = ({ claims = [], metadata = {}, loading = false, className = 
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-foreground">
-                      {claim?.currency || '$'}{claim?.requestedAmount?.toFixed(2)}
+                      {formatCurrency(claim?.requestedAmount, claim?.currency)}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-foreground">
                       {claim?.approvedAmount ? (
                         <span className="text-success">
-                          {claim?.currency || '$'}{claim?.approvedAmount?.toFixed(2)}
+                          {formatCurrency(claim?.approvedAmount, claim?.currency)}
                         </span>
                       ) : (
                         <span className="text-text-secondary">—</span>

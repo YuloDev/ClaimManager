@@ -96,33 +96,35 @@ const FormActions = ({
           </div>
 
           {/* Secondary Actions */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-border">
-            <Button
-              variant="ghost"
-              className="flex-1 sm:flex-none"
-              iconName="Eye"
-              iconPosition="left"
-            >
-              Vista Previa
-            </Button>
+          <div className="pt-4 border-t border-border">
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="ghost"
+                className="flex-none"
+                iconName="Eye"
+                iconPosition="left"
+              >
+                Vista Previa
+              </Button>
 
-            <Button
-              variant="ghost"
-              className="flex-1 sm:flex-none"
-              iconName="Download"
-              iconPosition="left"
-            >
-              Descargar PDF
-            </Button>
+              <Button
+                variant="ghost"
+                className="flex-none"
+                iconName="Download"
+                iconPosition="left"
+              >
+                Descargar PDF
+              </Button>
 
-            <Button
-              variant="ghost"
-              className="flex-1 sm:flex-none text-error hover:text-error"
-              iconName="Trash2"
-              iconPosition="left"
-            >
-              Eliminar Borrador
-            </Button>
+              <Button
+                variant="ghost"
+                className="flex-none text-error hover:text-error hover:bg-error/10"
+                iconName="Trash2"
+                iconPosition="left"
+              >
+                Eliminar Borrador
+              </Button>
+            </div>
           </div>
         </div>
 

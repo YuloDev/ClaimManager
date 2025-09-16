@@ -16,13 +16,13 @@ import Icon from '../../components/AppIcon';
 const initialForm = {
   patientInfo: {
     fullName: 'JIMENEZ BENAVIDES ONAUR JUMANDY ',
-    identification: '0707070579',
+    identification: '1701020304',
     birthDate: '2002-07-14',
     gender: 'male',
     phone: '0992880198',
     email: '',
     relationship: 'self',
-    policyNumber: 'POL-2024-XXX',
+    policyNumber: 'POL-2024-002',
     address: '',
     careType: 'hospitalario',
   },
@@ -31,11 +31,11 @@ const initialForm = {
 
 const VALIDATOR_FACTURA_URL =
   import.meta.env.VITE_VALIDATOR_FACTURA_URL ||
-  'http://127.0.0.1:8005/validar-factura';
+  'http://127.0.0.1:8001/validar-factura';
 
 const VALIDATOR_DOC_URL =
   import.meta.env.VITE_VALIDATOR_DOC_URL ||
-  'http://127.0.0.1:8005/validar-documento';
+  'http://127.0.0.1:8001/validar-documento';
 
 const REQUIRED_FIELDS = [
   'patientInfo.fullName',
@@ -183,6 +183,7 @@ const ClaimSubmission = () => {
         ? VALIDATOR_FACTURA_URL
         : VALIDATOR_DOC_URL;
 
+    // 1) Validación principal del documento
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', accept: 'application/json' },
@@ -193,6 +194,70 @@ const ClaimSubmission = () => {
     if (!res.ok) {
       throw new Error(data?.detail || data?.message || 'Error al validar documento');
     }
+
+    // 2) Llamada adicional para detección de texto sobrepuesto
+    try {
+      const textOverlayUrl = 'http://127.0.0.1:8001/api/detectar_texto_sobrepuesto';
+      console.log('🔍 Enviando documento para análisis de texto sobrepuesto...', {
+        url: textOverlayUrl,
+        pdfBase64Length: pdfBase64?.length || 0
+      });
+      
+      // Intentar diferentes formatos de payload
+      let textOverlayRes;
+      
+      // Formato 1: pdfbase64 (como otros endpoints)
+      textOverlayRes = await fetch(textOverlayUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({ pdfbase64: pdfBase64 }),
+      });
+      
+      // Si falla con 400, intentar formato 2: pdf_base64
+      if (!textOverlayRes.ok && textOverlayRes.status === 400) {
+        console.log('🔄 Reintentando con formato pdf_base64...');
+        textOverlayRes = await fetch(textOverlayUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify({ pdf_base64: pdfBase64 }),
+        });
+      }
+      
+      // Si falla con 400, intentar formato 3: file o document
+      if (!textOverlayRes.ok && textOverlayRes.status === 400) {
+        console.log('🔄 Reintentando con formato document...');
+        textOverlayRes = await fetch(textOverlayUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify({ document: pdfBase64 }),
+        });
+      }
+
+      console.log('📋 Respuesta de texto sobrepuesto:', {
+        status: textOverlayRes.status,
+        statusText: textOverlayRes.statusText,
+        ok: textOverlayRes.ok
+      });
+
+      if (textOverlayRes.ok) {
+        const textOverlayData = await textOverlayRes.json().catch(() => ({}));
+        console.log('✅ Datos de texto sobrepuesto obtenidos:', textOverlayData);
+        // Agregar la respuesta del endpoint de texto sobrepuesto al resultado
+        data.texto_sobrepuesto = textOverlayData;
+      } else {
+        const errorText = await textOverlayRes.text().catch(() => 'Error desconocido');
+        console.warn('⚠️ Error en análisis de texto sobrepuesto:', {
+          status: textOverlayRes.status,
+          statusText: textOverlayRes.statusText,
+          errorText
+        });
+        data.texto_sobrepuesto = null;
+      }
+    } catch (err) {
+      console.error('❌ Error al detectar texto sobrepuesto:', err);
+      data.texto_sobrepuesto = null;
+    }
+
     return data;
   }
 

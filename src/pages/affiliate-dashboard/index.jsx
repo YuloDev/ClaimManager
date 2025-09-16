@@ -60,7 +60,7 @@ const AffiliateDashboard = () => {
     const fetchReclamos = async () => {
       try {
         setLoadingReclamos(true);
-        const response = await fetch('http://127.0.0.1:8005/reclamos');
+        const response = await fetch('http://127.0.0.1:8001/reclamos');
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -123,7 +123,7 @@ const AffiliateDashboard = () => {
         { title: 'Total Reclamos', value: '0', subtitle: 'Enviados este mes', icon: 'FileText', color: 'primary' },
         { title: 'Total Aprobados', value: '0', subtitle: 'Reclamos aprobados', icon: 'CheckCircle', color: 'success' },
         { title: 'Pendientes de Aprobación', value: '0', subtitle: 'En proceso de revisión', icon: 'Clock', color: 'warning' },
-        { title: 'Monto Aprobado', value: '€0.00', subtitle: 'Total reembolsado', icon: 'CreditCard', color: 'accent' }
+        { title: 'Monto Aprobado', value: '$0.00', subtitle: 'Total reembolsado', icon: 'CreditCard', color: 'accent' }
       ];
     }
 
@@ -151,7 +151,7 @@ const AffiliateDashboard = () => {
       { title: 'Total Reclamos', value: totalReclamos.toString(), subtitle: 'Enviados este mes', icon: 'FileText', color: 'primary' },
       { title: 'Total Aprobados', value: aprobados.toString(), subtitle: 'Reclamos aprobados', icon: 'CheckCircle', color: 'success' },
       { title: 'Pendientes de Aprobación', value: pendientes.toString(), subtitle: 'En proceso de revisión', icon: 'Clock', color: 'warning' },
-      { title: 'Monto Aprobado', value: `${moneda}${montoAprobado.toFixed(2)}`, subtitle: 'Total reembolsado', icon: 'CreditCard', color: 'accent' }
+      { title: 'Monto Aprobado', value: `${moneda}${montoAprobado.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, subtitle: 'Total reembolsado', icon: 'CreditCard', color: 'accent' }
     ];
   };
 

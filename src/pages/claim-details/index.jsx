@@ -272,7 +272,7 @@ const ClaimDetails = () => {
       const claimPayload = buildClaimPayload();
       console.log('🚀 Enviando reclamo automáticamente:', claimPayload);
       
-      const CLAIMS_API_URL = 'http://127.0.0.1:8005/reclamos';
+      const CLAIMS_API_URL = 'http://127.0.0.1:8001/reclamos';
       
       const res = await fetch(CLAIMS_API_URL, {
         method: 'POST',
@@ -603,8 +603,81 @@ const ClaimDetails = () => {
                                 </ul>
                               </div>
 
-                              {/* Metadatos */}
-                              {v?.riesgo?.metadatos && (
+                              {/* Análisis de Texto Sobrepuesto */}
+                              {doc?.validation?.texto_sobrepuesto ? (
+                                <div className="rounded-md border border-border p-3 md:col-span-2">
+                                  <div className="text-xs font-medium mb-2">
+                                    Alineación de elementos de texto (análisis avanzado)
+                                  </div>
+                                  <div className="space-y-3">
+                                    {/* Estado general */}
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-medium">Texto sobrepuesto detectado:</span>
+                                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                        doc.validation.texto_sobrepuesto.texto_sobrepuesto_detectado 
+                                          ? 'bg-red-100 text-red-800' 
+                                          : 'bg-green-100 text-green-800'
+                                      }`}>
+                                        {doc.validation.texto_sobrepuesto.texto_sobrepuesto_detectado ? 'SÍ' : 'NO'}
+                                      </span>
+                                    </div>
+
+                                    {/* Alertas de solapamiento */}
+                                    {doc.validation.texto_sobrepuesto.alertas && doc.validation.texto_sobrepuesto.alertas.length > 0 && (
+                                      <div>
+                                        <div className="text-sm font-medium mb-2">
+                                          Alertas de solapamiento ({doc.validation.texto_sobrepuesto.alertas.length}):
+                                        </div>
+                                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                                          {doc.validation.texto_sobrepuesto.alertas.map((alerta, index) => (
+                                            <div key={index} className="bg-red-50 border border-red-200 rounded p-2 text-xs">
+                                              <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                  <span className="font-medium">Página:</span> {alerta.pagina}
+                                                </div>
+                                                <div>
+                                                  <span className="font-medium">Posición:</span> {alerta.posicion}
+                                                </div>
+                                                <div>
+                                                  <span className="font-medium">Texto 1:</span> "{alerta.texto1}"
+                                                </div>
+                                                <div>
+                                                  <span className="font-medium">Texto 2:</span> "{alerta.texto2}"
+                                                </div>
+                                                <div>
+                                                  <span className="font-medium">Coord 1:</span> [{alerta.coord1?.[0]?.toFixed(2)}, {alerta.coord1?.[1]?.toFixed(2)}]
+                                                </div>
+                                                <div>
+                                                  <span className="font-medium">Coord 2:</span> [{alerta.coord2?.[0]?.toFixed(2)}, {alerta.coord2?.[1]?.toFixed(2)}]
+                                                </div>
+                                                <div className="col-span-2">
+                                                  <span className="font-medium">Solapamiento:</span> 
+                                                  <span className="text-red-600 font-bold"> {alerta.solapamiento_px?.toFixed(2)} px</span>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Si no hay alertas pero se detectó solapamiento */}
+                                    {doc.validation.texto_sobrepuesto.texto_sobrepuesto_detectado && 
+                                     (!doc.validation.texto_sobrepuesto.alertas || doc.validation.texto_sobrepuesto.alertas.length === 0) && (
+                                      <div className="text-sm text-amber-600">
+                                        Se detectó texto sobrepuesto pero no se encontraron detalles específicos.
+                                      </div>
+                                    )}
+
+                                    {/* Si no se detectó solapamiento */}
+                                    {!doc.validation.texto_sobrepuesto.texto_sobrepuesto_detectado && (
+                                      <div className="text-sm text-green-600">
+                                        No se encontraron elementos de texto sobrepuestos en el documento.
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : v?.riesgo?.metadatos && (
                                 <div className="rounded-md border border-border p-3 md:col-span-2">
                                   <div className="text-xs font-medium mb-2">
                                     Metadatos del documento
