@@ -18,8 +18,7 @@ const Badge = ({ children, tone = 'default' }) => {
   };
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 text-xs rounded-md border ${tones[tone] || tones.default
-        }`}
+      className={`inline-flex items-center px-2 py-0.5 text-xs rounded-md border ${tones[tone] || tones.default}`}
     >
       {children}
     </span>
@@ -53,7 +52,8 @@ const RenderDetalle = ({ detalle }) => {
       <div className="text-xs bg-muted p-2 rounded break-words max-h-40 overflow-auto">
         {Object.entries(detalle).map(([k, v]) => (
           <div key={k}>
-            <span className="font-medium">{k}:</span> <RenderDetalle detalle={v} />
+            <span className="font-medium">{k}:</span>{' '}
+            <RenderDetalle detalle={v} />
           </div>
         ))}
       </div>
@@ -73,7 +73,7 @@ const ClaimDetails = () => {
   const [riskLevels, setRiskLevels] = useState({
     aprobado: [0, 20],
     revision: [21, 50],
-    rechazado: [51, 100]
+    rechazado: [51, 100],
   });
   const [claimSent, setClaimSent] = useState(false);
 
@@ -85,13 +85,11 @@ const ClaimDetails = () => {
         setRiskLevels(levels);
       } catch (error) {
         console.error('Error al cargar niveles de riesgo:', error);
-        // Mantener valores por defecto si hay error
       }
     };
 
     fetchRiskLevels();
   }, []);
-
 
   const N8N_WEBHOOK_URL =
     import.meta.env.VITE_N8N_WEBHOOK_URL ||
@@ -108,14 +106,38 @@ const ClaimDetails = () => {
 
   const patientInfo = apiResponse?.patientInfo || {};
   const diagnosis = apiResponse?.diagnosis || {};
-  const results = Array.isArray(apiResponse?.results)
-    ? apiResponse.results
-    : [];
-  const attachments = Array.isArray(apiResponse?.attachments)
-    ? apiResponse.attachments
-    : [];
+  const results = Array.isArray(apiResponse?.results) ? apiResponse.results : [];
+  const attachments = Array.isArray(apiResponse?.attachments) ? apiResponse.attachments : [];
 
   const validated = results;
+
+  // 👇 Procesamiento para reemplazar detalle de alineación
+const processedValidated = useMemo(() => {
+  return (validated || []).map((doc) => {
+    if (doc?.validation?.riesgo?.secundarias) {
+      doc.validation.riesgo.secundarias =
+        doc.validation.riesgo.secundarias.map((s) => {
+          if (
+            s.check &&
+            s.check.toLowerCase().includes('alineación de elementos de texto')
+          ) {
+            const flag =
+              s.detalle?.texto_sobrepuesto_detectado ??
+              doc?.validation?.texto_sobrepuesto?.texto_sobrepuesto_detectado ??
+              false;
+
+            return {
+              ...s,
+              detalle: { texto_sobrepuesto_detectado: flag },
+            };
+          }
+          return s;
+        });
+    }
+    return doc;
+  });
+}, [validated]);
+
 
   const formatMoney = (v) =>
     new Intl.NumberFormat('es-EC', {
@@ -130,7 +152,6 @@ const ClaimDetails = () => {
     return 'info';
   };
 
-  // Función para determinar el estado basado en el score y niveles dinámicos
   const getStateFromScore = (score) => {
     for (const [levelName, [min, max]] of Object.entries(riskLevels)) {
       if (score >= min && score <= max) {
@@ -140,61 +161,62 @@ const ClaimDetails = () => {
     return 'unknown';
   };
 
-  // Función para obtener el nombre de display del estado
   const getStateDisplayName = (levelName) => {
     const displayNames = {
       aprobado: 'Aprobado',
       revision: 'En Revisión',
       rechazado: 'Rechazado',
-      // Mapeo para nombres antiguos
       bajo: 'Aprobado',
       medio: 'En Revisión',
-      alto: 'Rechazado'
+      alto: 'Rechazado',
     };
     return displayNames[levelName] || levelName;
   };
 
-  // Función para obtener el color de fondo basado en el estado
   const getStateBackgroundClass = (levelName) => {
     const colors = {
       aprobado: 'bg-emerald-50',
       revision: 'bg-amber-50',
       rechazado: 'bg-rose-50',
-      // Mapeo para nombres antiguos
       bajo: 'bg-emerald-50',
       medio: 'bg-amber-50',
-      alto: 'bg-rose-50'
+      alto: 'bg-rose-50',
     };
     return colors[levelName] || '';
   };
 
-  // Función para obtener las clases de borde y estilo para el nivel
   const getStateBadgeClass = (levelName) => {
     const styles = {
-      aprobado: 'px-2 py-1 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs font-medium',
-      revision: 'px-2 py-1 rounded-md border border-amber-300 bg-amber-50 text-amber-800 text-xs font-medium',
-      rechazado: 'px-2 py-1 rounded-md border border-red-300 bg-red-50 text-red-800 text-xs font-medium',
-      // Mapeo para nombres antiguos
-      bajo: 'px-2 py-1 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs font-medium',
-      medio: 'px-2 py-1 rounded-md border border-amber-300 bg-amber-50 text-amber-800 text-xs font-medium',
-      alto: 'px-2 py-1 rounded-md border border-red-300 bg-red-50 text-red-800 text-xs font-medium'
+      aprobado:
+        'px-2 py-1 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs font-medium',
+      revision:
+        'px-2 py-1 rounded-md border border-amber-300 bg-amber-50 text-amber-800 text-xs font-medium',
+      rechazado:
+        'px-2 py-1 rounded-md border border-red-300 bg-red-50 text-red-800 text-xs font-medium',
+      bajo:
+        'px-2 py-1 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs font-medium',
+      medio:
+        'px-2 py-1 rounded-md border border-amber-300 bg-amber-50 text-amber-800 text-xs font-medium',
+      alto:
+        'px-2 py-1 rounded-md border border-red-300 bg-red-50 text-red-800 text-xs font-medium',
     };
-    return styles[levelName] || 'px-2 py-1 rounded-md border border-gray-300 bg-gray-50 text-gray-800 text-xs font-medium';
+    return (
+      styles[levelName] ||
+      'px-2 py-1 rounded-md border border-gray-300 bg-gray-50 text-gray-800 text-xs font-medium'
+    );
   };
 
-  // Función para determinar el estado final basándose en las validaciones
   const determineClaimStatus = () => {
     if (!validated || validated.length === 0) {
-      return 'En Revisión'; // Estado por defecto si no hay validaciones
+      return 'En Revisión';
     }
 
     let hasRechazado = false;
     let hasEnRevision = false;
     let hasAprobado = false;
 
-    validated.forEach(doc => {
+    validated.forEach((doc) => {
       if (doc.validationError) {
-        // Si hay error en la validación, consideramos como rechazado
         hasRechazado = true;
         return;
       }
@@ -203,7 +225,7 @@ const ClaimDetails = () => {
       if (v?.riesgo?.score !== undefined) {
         const estado = getStateFromScore(v.riesgo.score);
         const displayName = getStateDisplayName(estado);
-        
+
         if (displayName === 'Rechazado') {
           hasRechazado = true;
         } else if (displayName === 'En Revisión') {
@@ -212,15 +234,10 @@ const ClaimDetails = () => {
           hasAprobado = true;
         }
       } else {
-        // Si no hay score, consideramos como en revisión
         hasEnRevision = true;
       }
     });
 
-    // Lógica de prioridad según los requerimientos:
-    // 1. Si hay al menos un rechazado → Rechazado
-    // 2. Si todos están aprobados y hay al menos uno en revisión → En Revisión  
-    // 3. Si todos están aprobados → Aprobado
     if (hasRechazado) {
       return 'Rechazado';
     } else if (hasEnRevision) {
@@ -228,26 +245,26 @@ const ClaimDetails = () => {
     } else if (hasAprobado) {
       return 'Aprobado';
     } else {
-      return 'En Revisión'; // Estado por defecto
+      return 'En Revisión';
     }
   };
 
   const buildClaimPayload = () => {
     const estado = determineClaimStatus();
-    
-    // Extraer información del proveedor desde patientInfo u otro lugar
-    // Por ahora usamos datos de ejemplo, pero podrías ajustar según tu estructura
     const proveedor = {
-      nombre: patientInfo.fullName || "Proveedor no especificado",
-      tipo_servicio: patientInfo.careType === 'hospitalario' ? 'Consulta Médica' : 'Otro Servicio'
+      nombre: patientInfo.fullName || 'Proveedor no especificado',
+      tipo_servicio:
+        patientInfo.careType === 'hospitalario'
+          ? 'Consulta Médica'
+          : 'Otro Servicio',
     };
 
     return {
       proveedor,
       estado,
       monto_solicitado: parseFloat(diagnosis?.totalAmount || 0),
-      moneda: "$",
-      observaciones: `Reclamo procesado automáticamente. Estado determinado por validaciones: ${validated.length} documento(s) evaluado(s).`
+      moneda: '$',
+      observaciones: `Reclamo procesado automáticamente. Estado determinado por validaciones: ${validated.length} documento(s) evaluado(s).`,
     };
   };
 
@@ -266,36 +283,36 @@ const ClaimDetails = () => {
     };
   };
 
-  // Envío automático del reclamo cuando se obtienen las validaciones
   const sendClaimToBackend = async () => {
     try {
       const claimPayload = buildClaimPayload();
       console.log('🚀 Enviando reclamo automáticamente:', claimPayload);
-      
+
       const CLAIMS_API_URL = 'http://127.0.0.1:8001/reclamos';
-      
+
       const res = await fetch(CLAIMS_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(claimPayload),
       });
-      
+
       const data = await res.json().catch(() => ({}));
-      
+
       if (!res.ok) {
-        console.error('Error al enviar reclamo automáticamente:', data?.message || `HTTP ${res.status}`);
+        console.error(
+          'Error al enviar reclamo automáticamente:',
+          data?.message || `HTTP ${res.status}`
+        );
         return;
       }
-      
+
       console.log('✅ Reclamo enviado automáticamente al backend');
-      setClaimSent(true); // Marcar como enviado
-      
+      setClaimSent(true);
     } catch (err) {
       console.error('❌ Error en envío automático del reclamo:', err);
     }
   };
 
-  // Envío automático del reclamo cuando se obtienen las validaciones (solo una vez)
   useEffect(() => {
     if (validated && validated.length > 0 && !claimSent) {
       console.log('🎯 Validaciones obtenidas, enviando reclamo automáticamente...');
@@ -346,8 +363,9 @@ const ClaimDetails = () => {
       <RoleBasedSidebar isCollapsed={sidebarCollapsed} userRole="affiliate" />
 
       <main
-        className={`transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
-          } pt-16`}
+        className={`transition-all duration-300 ease-in-out ${
+          sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+        } pt-16`}
         style={{ paddingBottom: footerH + 24 }}
       >
         <div className="p-6">
@@ -388,7 +406,7 @@ const ClaimDetails = () => {
                 </div>
               </div>
 
-              {/* Resultado de validación por documento */}
+              {/* Resultado de validación */}
               <div className="bg-card border border-border rounded-lg">
                 <div className="p-4 border-b border-border flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -398,21 +416,20 @@ const ClaimDetails = () => {
                     </h3>
                   </div>
                   <div className="text-xs text-text-secondary">
-                    {validated.length} documento(s) evaluado(s)
+                    {processedValidated.length} documento(s) evaluado(s)
                   </div>
                 </div>
 
                 <div className="divide-y divide-border">
-                  {validated.length === 0 && (
+                  {processedValidated.length === 0 && (
                     <div className="p-4 text-sm text-text-secondary italic">
                       No hay facturas para validar.
                     </div>
                   )}
 
-                  {validated.map((doc, idx) => {
+                  {processedValidated.map((doc, idx) => {
                     const v = doc.validation;
                     const hasError = !!doc.validationError;
-                    const esFalso = v?.riesgo?.es_falso === true;
 
                     return (
                       <div key={`${doc.filename}-${idx}`} className="p-4">
@@ -426,64 +443,43 @@ const ClaimDetails = () => {
                               {Math.round((doc.size || 0) / 1024)} KB
                             </div>
                           </div>
-
                         </div>
 
                         {!hasError && v?.mensaje && (
-
                           <div className="mt-3 p-3 rounded-md border border-border bg-muted/30">
                             <div className="flex justify-between items-center text-sm font-medium mb-2">
-                              <span>Score: <span className="font-bold">{v?.riesgo?.score ?? "—"}</span></span>
+                              <span>
+                                Score:{' '}
+                                <span className="font-bold">
+                                  {v?.riesgo?.score ?? '—'}
+                                </span>
+                              </span>
                               <div className="flex items-center gap-2">
                                 <span>Nivel:</span>
-                                <span className={
-                                  v?.riesgo?.score !== undefined 
-                                    ? getStateBadgeClass(getStateFromScore(v.riesgo.score))
-                                    : (v?.riesgo?.nivel 
-                                        ? getStateBadgeClass(v.riesgo.nivel) 
-                                        : 'px-2 py-1 rounded-md border border-gray-300 bg-gray-50 text-gray-800 text-xs font-medium'
-                                      )
-                                }>
-                                  {v?.riesgo?.score !== undefined 
-                                    ? getStateDisplayName(getStateFromScore(v.riesgo.score))
-                                    : (v?.riesgo?.nivel ? getStateDisplayName(v.riesgo.nivel) : "—")
+                                <span
+                                  className={
+                                    v?.riesgo?.score !== undefined
+                                      ? getStateBadgeClass(
+                                          getStateFromScore(v.riesgo.score)
+                                        )
+                                      : v?.riesgo?.nivel
+                                      ? getStateBadgeClass(v.riesgo.nivel)
+                                      : 'px-2 py-1 rounded-md border border-gray-300 bg-gray-50 text-gray-800 text-xs font-medium'
                                   }
+                                >
+                                  {v?.riesgo?.score !== undefined
+                                    ? getStateDisplayName(
+                                        getStateFromScore(v.riesgo.score)
+                                      )
+                                    : v?.riesgo?.nivel
+                                    ? getStateDisplayName(v.riesgo.nivel)
+                                    : '—'}
                                 </span>
                               </div>
                             </div>
-
-                            {/* Tabla de rangos */}
-                            <table className="w-full text-xs border border-border rounded">
-                              <thead className="bg-muted text-foreground/80">
-                                <tr>
-                                  <th className="border border-border px-2 py-1 text-left">Rango</th>
-                                  <th className="border border-border px-2 py-1 text-left">Estado</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {Object.entries(riskLevels).map(([levelName, [min, max]]) => {
-                                  const currentScore = v?.riesgo?.score ?? 0;
-                                  const isCurrentLevel = currentScore >= min && currentScore <= max;
-                                  const bgClass = isCurrentLevel ? getStateBackgroundClass(levelName) : '';
-                                  
-                                  return (
-                                    <tr key={levelName} className={bgClass}>
-                                      <td className="border border-border px-2 py-1">
-                                        {min} - {max}
-                                      </td>
-                                      <td className="border border-border px-2 py-1">
-                                        {getStateDisplayName(levelName)}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
                           </div>
-                          // <div className="mt-3 text-sm text-foreground/80 break-words">
-                          //   {v.mensaje}
-                          // </div>
                         )}
+
                         {hasError && (
                           <div className="mt-3 text-sm text-rose-600 break-words">
                             {doc.validationError}
@@ -491,14 +487,7 @@ const ClaimDetails = () => {
                         )}
 
                         {!hasError && v && (
-                          <details
-                            className="mt-4 group"
-                            onToggle={(e) => {
-                              if (e.target.open) {
-                                e.target.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                              }
-                            }}
-                          >
+                          <details className="mt-4 group">
                             <summary className="cursor-pointer text-sm text-text-secondary hover:text-foreground">
                               Ver detalle técnico
                             </summary>
@@ -516,9 +505,7 @@ const ClaimDetails = () => {
                                         key={i}
                                         className="border-b last:border-0 border-border pb-2"
                                       >
-                                        <div className="font-medium">
-                                          {p.check}
-                                        </div>
+                                        <div className="font-medium">{p.check}</div>
                                         <div className="text-text-secondary">
                                           <RenderDetalle detalle={p.detalle} />
                                         </div>
@@ -530,10 +517,10 @@ const ClaimDetails = () => {
                                   )}
                                   {(v?.riesgo?.prioritarias || []).length ===
                                     0 && (
-                                      <li className="text-text-secondary italic">
-                                        Sin observaciones.
-                                      </li>
-                                    )}
+                                    <li className="text-text-secondary italic">
+                                      Sin observaciones.
+                                    </li>
+                                  )}
                                 </ul>
                               </div>
 
@@ -549,9 +536,7 @@ const ClaimDetails = () => {
                                         key={i}
                                         className="border-b last:border-0 border-border pb-2"
                                       >
-                                        <div className="font-medium">
-                                          {p.check}
-                                        </div>
+                                        <div className="font-medium">{p.check}</div>
                                         <div className="text-text-secondary">
                                           <RenderDetalle detalle={p.detalle} />
                                         </div>
@@ -563,10 +548,10 @@ const ClaimDetails = () => {
                                   )}
                                   {(v?.riesgo?.secundarias || []).length ===
                                     0 && (
-                                      <li className="text-text-secondary italic">
-                                        Sin observaciones.
-                                      </li>
-                                    )}
+                                    <li className="text-text-secondary italic">
+                                      Sin observaciones.
+                                    </li>
+                                  )}
                                 </ul>
                               </div>
 
@@ -582,9 +567,7 @@ const ClaimDetails = () => {
                                         key={i}
                                         className="border-b last:border-0 border-border pb-2"
                                       >
-                                        <div className="font-medium">
-                                          {p.check}
-                                        </div>
+                                        <div className="font-medium">{p.check}</div>
                                         <div className="text-text-secondary">
                                           <RenderDetalle detalle={p.detalle} />
                                         </div>
@@ -596,95 +579,12 @@ const ClaimDetails = () => {
                                   )}
                                   {(v?.riesgo?.adicionales || []).length ===
                                     0 && (
-                                      <li className="text-text-secondary italic">
-                                        Sin observaciones.
-                                      </li>
-                                    )}
+                                    <li className="text-text-secondary italic">
+                                      Sin observaciones.
+                                    </li>
+                                  )}
                                 </ul>
                               </div>
-
-                              {/* Análisis de Texto Sobrepuesto */}
-                              {doc?.validation?.texto_sobrepuesto ? (
-                                <div className="rounded-md border border-border p-3 md:col-span-2">
-                                  <div className="text-xs font-medium mb-2">
-                                    Alineación de elementos de texto (análisis avanzado)
-                                  </div>
-                                  <div className="space-y-3">
-                                    {/* Estado general */}
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-sm font-medium">Texto sobrepuesto detectado:</span>
-                                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                        doc.validation.texto_sobrepuesto.texto_sobrepuesto_detectado 
-                                          ? 'bg-red-100 text-red-800' 
-                                          : 'bg-green-100 text-green-800'
-                                      }`}>
-                                        {doc.validation.texto_sobrepuesto.texto_sobrepuesto_detectado ? 'SÍ' : 'NO'}
-                                      </span>
-                                    </div>
-
-                                    {/* Alertas de solapamiento */}
-                                    {doc.validation.texto_sobrepuesto.alertas && doc.validation.texto_sobrepuesto.alertas.length > 0 && (
-                                      <div>
-                                        <div className="text-sm font-medium mb-2">
-                                          Alertas de solapamiento ({doc.validation.texto_sobrepuesto.alertas.length}):
-                                        </div>
-                                        <div className="space-y-2 max-h-40 overflow-y-auto">
-                                          {doc.validation.texto_sobrepuesto.alertas.map((alerta, index) => (
-                                            <div key={index} className="bg-red-50 border border-red-200 rounded p-2 text-xs">
-                                              <div className="grid grid-cols-2 gap-2">
-                                                <div>
-                                                  <span className="font-medium">Página:</span> {alerta.pagina}
-                                                </div>
-                                                <div>
-                                                  <span className="font-medium">Posición:</span> {alerta.posicion}
-                                                </div>
-                                                <div>
-                                                  <span className="font-medium">Texto 1:</span> "{alerta.texto1}"
-                                                </div>
-                                                <div>
-                                                  <span className="font-medium">Texto 2:</span> "{alerta.texto2}"
-                                                </div>
-                                                <div>
-                                                  <span className="font-medium">Coord 1:</span> [{alerta.coord1?.[0]?.toFixed(2)}, {alerta.coord1?.[1]?.toFixed(2)}]
-                                                </div>
-                                                <div>
-                                                  <span className="font-medium">Coord 2:</span> [{alerta.coord2?.[0]?.toFixed(2)}, {alerta.coord2?.[1]?.toFixed(2)}]
-                                                </div>
-                                                <div className="col-span-2">
-                                                  <span className="font-medium">Solapamiento:</span> 
-                                                  <span className="text-red-600 font-bold"> {alerta.solapamiento_px?.toFixed(2)} px</span>
-                                                </div>
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* Si no hay alertas pero se detectó solapamiento */}
-                                    {doc.validation.texto_sobrepuesto.texto_sobrepuesto_detectado && 
-                                     (!doc.validation.texto_sobrepuesto.alertas || doc.validation.texto_sobrepuesto.alertas.length === 0) && (
-                                      <div className="text-sm text-amber-600">
-                                        Se detectó texto sobrepuesto pero no se encontraron detalles específicos.
-                                      </div>
-                                    )}
-
-                                    {/* Si no se detectó solapamiento */}
-                                    {!doc.validation.texto_sobrepuesto.texto_sobrepuesto_detectado && (
-                                      <div className="text-sm text-green-600">
-                                        No se encontraron elementos de texto sobrepuestos en el documento.
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              ) : v?.riesgo?.metadatos && (
-                                <div className="rounded-md border border-border p-3 md:col-span-2">
-                                  <div className="text-xs font-medium mb-2">
-                                    Metadatos del documento
-                                  </div>
-                                  <RenderDetalle detalle={v.riesgo.metadatos} />
-                                </div>
-                              )}
                             </div>
                           </details>
                         )}
@@ -717,10 +617,11 @@ const ClaimDetails = () => {
 
                 {sendMsg && (
                   <div
-                    className={`mt-3 text-xs p-2 rounded border ${sendMsg.ok
-                      ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-                      : 'text-rose-700 bg-rose-50 border-rose-200'
-                      }`}
+                    className={`mt-3 text-xs p-2 rounded border ${
+                      sendMsg.ok
+                        ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                        : 'text-rose-700 bg-rose-50 border-rose-200'
+                    }`}
                   >
                     {sendMsg.text}
                   </div>
@@ -732,23 +633,28 @@ const ClaimDetails = () => {
                   Resumen de validación
                 </div>
                 <div className="text-sm text-text-secondary">
-                  Evaluadas: {validated.length}
+                  Evaluadas: {processedValidated.length}
                   <br />
-                  Con error: {validated.filter((d) => d.validationError).length}
+                  Con error:{' '}
+                  {processedValidated.filter((d) => d.validationError).length}
                 </div>
-                
+
                 <div className="mt-3 pt-3 border-t border-border">
-                  <div className="text-sm font-semibold mb-2">Estado del reclamo</div>
-                  <div className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
-                    determineClaimStatus() === 'Aprobado' 
-                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                      : determineClaimStatus() === 'En Revisión'
-                      ? 'bg-amber-50 text-amber-800 border border-amber-300'
-                      : 'bg-red-50 text-red-800 border border-red-300'
-                  }`}>
+                  <div className="text-sm font-semibold mb-2">
+                    Estado del reclamo
+                  </div>
+                  <div
+                    className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+                      determineClaimStatus() === 'Aprobado'
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                        : determineClaimStatus() === 'En Revisión'
+                        ? 'bg-amber-50 text-amber-800 border border-amber-300'
+                        : 'bg-red-50 text-red-800 border border-red-300'
+                    }`}
+                  >
                     {determineClaimStatus()}
                   </div>
-                  
+
                   {claimSent && (
                     <div className="mt-2 text-xs text-emerald-600 flex items-center gap-1">
                       <span>✅</span>

@@ -177,89 +177,86 @@ const ClaimSubmission = () => {
   }, [formData, uploadedFiles]);
 
 
-  async function validateDocumento(pdfBase64, documentType) {
-    const url =
-      documentType === 'factura'
-        ? VALIDATOR_FACTURA_URL
-        : VALIDATOR_DOC_URL;
+// 🔧 helper: normaliza el string para comparar "Alineación de elementos de texto"
+const normalize = (s = '') =>
+  String(s).normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
 
-    // 1) Validación principal del documento
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ pdfbase64: pdfBase64 }),
-    });
+function mergeAlignmentFromOverlay(mainData, overlayBlock) {
+  if (!mainData || !overlayBlock) return mainData;
 
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data?.detail || data?.message || 'Error al validar documento');
-    }
+  const checkLabel = 'Alineación de elementos de texto';
+  const sec = (mainData.riesgo = mainData.riesgo || {}, mainData.riesgo.secundarias || []);
+  mainData.riesgo.secundarias = sec; // aseguro referencia
 
-    // 2) Llamada adicional para detección de texto sobrepuesto
-    try {
-      const textOverlayUrl = 'http://127.0.0.1:8001/api/detectar_texto_sobrepuesto';
-      console.log('🔍 Enviando documento para análisis de texto sobrepuesto...', {
-        url: textOverlayUrl,
-        pdfBase64Length: pdfBase64?.length || 0
-      });
-      
-      // Intentar diferentes formatos de payload
-      let textOverlayRes;
-      
-      // Formato 1: pdfbase64 (como otros endpoints)
-      textOverlayRes = await fetch(textOverlayUrl, {
+  const idx = sec.findIndex((it) => normalize(it?.check) === normalize(checkLabel));
+
+  const mergedItem = {
+    check: checkLabel,
+    // meto todo lo útil del endpoint en "detalle" para no romper el shape previo
+    detalle: {
+      ...(overlayBlock.detalle || {}),
+      alertas: overlayBlock.alertas || [],
+      texto_sobrepuesto_detectado: !!overlayBlock.texto_sobrepuesto_detectado,
+    },
+    // si no vino penalización, conservo la anterior (por si acaso)
+    penalizacion:
+      overlayBlock.penalizacion ??
+      (idx >= 0 ? sec[idx]?.penalizacion : undefined),
+  };
+
+  if (idx >= 0) sec[idx] = mergedItem;
+  else sec.push(mergedItem);
+
+  // (Opcional) Sincroniza también el flag en el análisis de capas, si existe.
+  if (mainData?.riesgo?.analisis_capas?.superposicion_texto) {
+    mainData.riesgo.analisis_capas.superposicion_texto.has_overlapping =
+      !!overlayBlock.texto_sobrepuesto_detectado;
+  }
+
+  return mainData;
+}
+
+async function validateDocumento(pdfBase64, documentType) {
+  const url =
+    documentType === 'factura'
+      ? VALIDATOR_FACTURA_URL
+      : VALIDATOR_DOC_URL;
+
+  try {
+    // ▶️ Llamadas en paralelo, las dos con { pdfbase64 }
+    const [mainRes, overlayRes] = await Promise.all([
+      fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', accept: 'application/json' },
         body: JSON.stringify({ pdfbase64: pdfBase64 }),
-      });
-      
-      // Si falla con 400, intentar formato 2: pdf_base64
-      if (!textOverlayRes.ok && textOverlayRes.status === 400) {
-        console.log('🔄 Reintentando con formato pdf_base64...');
-        textOverlayRes = await fetch(textOverlayUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', accept: 'application/json' },
-          body: JSON.stringify({ pdf_base64: pdfBase64 }),
-        });
-      }
-      
-      // Si falla con 400, intentar formato 3: file o document
-      if (!textOverlayRes.ok && textOverlayRes.status === 400) {
-        console.log('🔄 Reintentando con formato document...');
-        textOverlayRes = await fetch(textOverlayUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', accept: 'application/json' },
-          body: JSON.stringify({ document: pdfBase64 }),
-        });
-      }
+      }),
+      fetch('http://127.0.0.1:8001/api/detectar_texto_sobrepuesto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({ pdfbase64: pdfBase64 }),
+      }),
+    ]);
 
-      console.log('📋 Respuesta de texto sobrepuesto:', {
-        status: textOverlayRes.status,
-        statusText: textOverlayRes.statusText,
-        ok: textOverlayRes.ok
-      });
+    const mainData = await mainRes.json().catch(() => ({}));
+    const overlayData = await overlayRes.json().catch(() => ({}));
 
-      if (textOverlayRes.ok) {
-        const textOverlayData = await textOverlayRes.json().catch(() => ({}));
-        console.log('✅ Datos de texto sobrepuesto obtenidos:', textOverlayData);
-        // Agregar la respuesta del endpoint de texto sobrepuesto al resultado
-        data.texto_sobrepuesto = textOverlayData;
-      } else {
-        const errorText = await textOverlayRes.text().catch(() => 'Error desconocido');
-        console.warn('⚠️ Error en análisis de texto sobrepuesto:', {
-          status: textOverlayRes.status,
-          statusText: textOverlayRes.statusText,
-          errorText
-        });
-        data.texto_sobrepuesto = null;
-      }
-    } catch (err) {
-      console.error('❌ Error al detectar texto sobrepuesto:', err);
-      data.texto_sobrepuesto = null;
+    if (!mainRes.ok) {
+      throw new Error(mainData?.detail || mainData?.message || 'Error al validar documento');
     }
 
-    return data;
+    // 🧩 Reemplazo del bloque "Alineación de elementos de texto" + penalización
+    if (overlayRes.ok && overlayData) {
+      mergeAlignmentFromOverlay(mainData, overlayData);
+    }
+
+    return mainData;
+  } catch (err) {
+    console.error('❌ Error en validación de documento:', err);
+    throw err;
   }
+}
+
+
 
   const handleSubmit = useCallback(async () => {
     const v = validate(formData);
