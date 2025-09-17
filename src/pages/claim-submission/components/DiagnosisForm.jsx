@@ -55,7 +55,7 @@ const DiagnosisForm = ({ formData, onChange, errors = {} }) => {
   };
 
   return (
-    <div className="bg-card border border-border rounded-lg shadow-sm">
+    <div className="bg-card border border-border rounded-lg shadow-sm overflow-visible">
       <div 
         className="flex items-center justify-between p-6 border-b border-border cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -76,9 +76,9 @@ const DiagnosisForm = ({ formData, onChange, errors = {} }) => {
         />
       </div>
       {isExpanded && (
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 relative overflow-visible">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="relative">
+            <div className="relative overflow-visible">
               <Input
                 label="Código ICD-10"
                 type="text"
@@ -102,7 +102,7 @@ const DiagnosisForm = ({ formData, onChange, errors = {} }) => {
               </Button>
 
               {showIcdSearch && (
-                <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-card border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 z-10 mt-1 bg-card border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
                   {filteredIcdCodes?.map((code) => (
                     <div
                       key={code?.code}

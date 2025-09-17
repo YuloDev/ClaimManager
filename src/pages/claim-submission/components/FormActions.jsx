@@ -90,6 +90,10 @@ const FormActions = ({
               className="flex-1"
               iconName="Send"
               iconPosition="left"
+              style={{
+                position: 'absolute'
+              }}
+
             >
               Enviar para Revisión
             </Button>
