@@ -60,7 +60,7 @@ const AffiliateDashboard = () => {
     const fetchReclamos = async () => {
       try {
         setLoadingReclamos(true);
-        const response = await fetch('http://127.0.0.1:8001/reclamos');
+        const response = await fetch('https://api-forense.nextisolutions.com/reclamos');
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
