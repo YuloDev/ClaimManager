@@ -14,24 +14,35 @@ const ResponseModal = ({ isOpen, onClose, responseData, fullResponseData }) => {
   const determineStatus = (data) => {
     // La nueva estructura tiene: { response: { totalReimbursement: ..., justification: ... } }
     const response = data.response;
+
+    console.log('Response:', response);
     
     if (!response) return { status: 'unknown', message: 'Sin información' };
     
     // Determinar estado basado en el totalReimbursement
     const totalReimbursement = response.totalReimbursement || 0;
     const justification = response.justification || '';
-    
-    if (totalReimbursement > 0) {
+  
+    console.log('Data:', data);
+
+    if (data.Output === "Tu solicitud de Reembolso fue aprobada") {
       return { 
         status: 'approved', 
         message: `Reembolso aprobado por ${totalReimbursement}. ${justification}` 
+      };
+    } else if (data.Output === "Solicitud recibida. Estado: En revisión. Te avisaremos cuando tengamos un resultado.") {
+      return { 
+        status: 'review', 
+        message: "Solicitud recibida. Estado: En revisión. Te avisaremos cuando tengamos un resultado." 
       };
     } else {
       return { 
         status: 'rejected', 
         message: `Reembolso rechazado. ${justification}` 
+
       };
     }
+
   };
 
   const statusInfo = determineStatus(responseData);
