@@ -60,7 +60,7 @@ const AffiliateDashboard = () => {
     const fetchReclamos = async () => {
       try {
         setLoadingReclamos(true);
-        const response = await fetch('https://api-forense.nextisolutions.com/reclamos');
+        const response = await fetch('http://127.0.0.1:8001/reclamos');
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -81,6 +81,7 @@ const AffiliateDashboard = () => {
 
     fetchReclamos();
   }, []);
+
 
   // ---------------- PUT: Guardar cambios ----------------
   const handleSaveWeights = async () => {
@@ -111,6 +112,7 @@ const AffiliateDashboard = () => {
   const handleNewClaim = () => {
     navigate('/claim-submission');
   };
+
 
   const breadcrumbs = [
     { label: 'Inicio', path: '/affiliate-dashboard', isActive: true }
@@ -193,7 +195,7 @@ const AffiliateDashboard = () => {
               <h1 className="text-2xl font-bold text-foreground mb-2">Panel de Afiliado</h1>
               <p className="text-text-secondary">Gestiona tus reclamos de reembolso y seguimiento de pagos</p>
             </div>
-            <div className="mt-4 lg:mt-0">
+            <div className="mt-4 lg:mt-0 flex gap-3">
               <Button
                 variant="default"
                 size="lg"
@@ -284,6 +286,7 @@ const AffiliateDashboard = () => {
           </div>
         </div>
       </main>
+
     </div>
   );
 };

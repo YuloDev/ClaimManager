@@ -19,7 +19,7 @@ const RiskLevelsManager = () => {
       setLoading(true);
       setIsUsingDefaults(false);
       
-      const response = await fetch('https://api-forense.nextisolutions.com/risk-levels');
+      const response = await fetch('http://127.0.0.1:8001/risk-levels');
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

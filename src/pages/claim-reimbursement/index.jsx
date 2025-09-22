@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import GlobalHeader from "../../components/ui/GlobalHeader";
 import RoleBasedSidebar from "../../components/ui/RoleBasedSidebar";
 import BreadcrumbNavigation from "../../components/ui/BreadcrumbNavigation";
 import Icon from "components/AppIcon";
 import html2pdf from "html2pdf.js";
+import ResponseModal from "../../components/ui/ResponseModal";
 
 const ClaimReimbursement = () => {
   const location = useLocation();
@@ -12,11 +13,53 @@ const ClaimReimbursement = () => {
   const reimbursement = location?.state?.reimbursement ?? null;
   const requestedAmount = location?.state?.requested ?? 0;
 
+  // Estados para el modal de respuesta del N8N
+  const [responseModalOpen, setResponseModalOpen] = useState(false);
+  const [responseData, setResponseData] = useState(null);
+  const [n8nResponse, setN8nResponse] = useState(null);
+
   const formatMoney = (v) =>
     new Intl.NumberFormat("es-EC", {
       style: "currency",
       currency: "USD",
     }).format(Number(v || 0));
+
+
+  console.log('Reimbursement:', reimbursement);
+  console.log('Requested Amount:', requestedAmount);
+  // Función para procesar la respuesta del N8N y mostrar el modal automáticamente
+  const processN8nResponse = (n8nResponse) => {
+    console.log('Procesando respuesta del N8N:', n8nResponse);
+    
+    if (!n8nResponse) {
+      console.log('No hay respuesta del N8N disponible');
+      return;
+    }
+    
+    // La respuesta del N8N viene como un objeto con la estructura:
+    // { IsSuccess: true, Output: "...", response: { patient: {...}, diagnosis: {...}, approvedItems: [...], totalReimbursement: ..., justification: ... } }
+    console.log('Datos de la respuesta:', n8nResponse);
+    
+    // Guardar la respuesta completa
+    setN8nResponse([n8nResponse]); // Convertir a array para mantener compatibilidad
+    // Procesar y mostrar el modal automáticamente
+    setResponseData(n8nResponse);
+    setResponseModalOpen(true);
+    console.log('Modal abierto automáticamente con respuesta del N8N');
+  };
+
+  const handleCloseResponseModal = () => {
+    setResponseModalOpen(false);
+    setResponseData(null);
+  };
+
+  // Procesar la respuesta del N8N que viene en el state de navegación
+  useEffect(() => {
+    if (reimbursement) {
+      // La respuesta del N8N viene en el state de navegación
+      processN8nResponse(reimbursement);
+    }
+  }, [reimbursement]); // Se ejecuta cuando cambia la respuesta del N8N
 
   const handleDownloadPDF = () => {
     if (!reimbursement) return;
@@ -81,22 +124,22 @@ const ClaimReimbursement = () => {
 
         <h1>Resumen de Reembolso</h1>
         <div class="section">
-          <p><strong>Paciente:</strong> ${reimbursement.patient?.name || "—"}</p>
-          <p><strong>Póliza:</strong> ${reimbursement.patient?.policyNumber || "—"}</p>
+          <p><strong>Paciente:</strong> ${n8nResponse && n8nResponse[0]?.response?.patient?.name || "—"}</p>
+          <p><strong>Póliza:</strong> ${n8nResponse && n8nResponse[0]?.response?.patient?.policyNumber || "—"}</p>
           <p><strong>Reembolso solicitado:</strong> ${formatMoney(requestedAmount)}</p>
           <p><strong>Reembolso aprobado:</strong> ${formatMoney(
-            reimbursement.totalReimbursement
+            n8nResponse && n8nResponse[0]?.response?.totalReimbursement !== undefined ? n8nResponse[0].response.totalReimbursement : 0
           )}</p>
         </div>
 
         <h2>Diagnóstico</h2>
-        <p>${reimbursement.diagnosis?.code || "—"} - ${
-      reimbursement.diagnosis?.description || "No especificado"
+        <p>${n8nResponse && n8nResponse[0]?.response?.diagnosis?.code || "—"} - ${
+      n8nResponse && n8nResponse[0]?.response?.diagnosis?.description || "No especificado"
     }</p>
 
         <h2>Ítems Aprobados</h2>
         ${
-          reimbursement.approvedItems?.length > 0
+          n8nResponse && n8nResponse[0]?.response?.approvedItems?.length > 0
             ? `
           <table class="table">
             <thead>
@@ -107,7 +150,7 @@ const ClaimReimbursement = () => {
               </tr>
             </thead>
             <tbody>
-              ${reimbursement.approvedItems
+              ${(n8nResponse[0].response.approvedItems || [])
                 .map(
                   (item) => `
                 <tr>
@@ -125,7 +168,7 @@ const ClaimReimbursement = () => {
         }
 
         <h2>Justificación</h2>
-        <p>${reimbursement.justification || "No disponible"}</p></br>
+        <p>${n8nResponse && n8nResponse[0]?.response?.justification || "No disponible"}</p></br>
       </body>
       </html>
     `;
@@ -174,21 +217,35 @@ const ClaimReimbursement = () => {
 
           {/* Vista normal en pantalla */}
           <div className="bg-card border border-border rounded-lg mb-6">
-            <div className="p-4 border-b border-border flex items-center gap-2">
-              <Icon name="DollarSign" size={18} className="text-primary" />
-              <h3 className="text-base font-semibold">Resumen de Reembolso</h3>
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Icon name="DollarSign" size={18} className="text-primary" />
+                <h3 className="text-base font-semibold">Resumen de Reembolso</h3>
+              </div>
+              {n8nResponse && n8nResponse[0]?.response && (
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${
+                    n8nResponse[0].response.totalReimbursement > 0 ? 'bg-green-500' : 'bg-red-500'
+                  }`}></div>
+                  <span className={`text-sm font-medium ${
+                    n8nResponse[0].response.totalReimbursement > 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {n8nResponse[0].response.totalReimbursement > 0 ? 'Aprobado' : 'Rechazado'}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <div className="text-xs text-text-secondary">Paciente</div>
                 <div className="font-medium">
-                  {reimbursement.patient?.name || "—"}
+                  {n8nResponse && n8nResponse[0]?.response?.patient?.name || "—"}
                 </div>
               </div>
               <div>
                 <div className="text-xs text-text-secondary">Póliza</div>
                 <div className="font-medium">
-                  {reimbursement.patient?.policyNumber || "—"}
+                  {n8nResponse && n8nResponse[0]?.response?.patient?.policyNumber || "—"}
                 </div>
               </div>
               <div>
@@ -202,7 +259,7 @@ const ClaimReimbursement = () => {
                   Reembolso Aprobado
                 </div>
                 <div className="font-medium text-emerald-700">
-                  {formatMoney(reimbursement.totalReimbursement)}
+                  {formatMoney(n8nResponse && n8nResponse[0]?.response?.totalReimbursement !== undefined ? n8nResponse[0].response.totalReimbursement : 0)}
                 </div>
               </div>
             </div>
@@ -217,9 +274,9 @@ const ClaimReimbursement = () => {
             <div className="p-4">
               <div className="text-sm">
                 <span className="font-medium">
-                  {reimbursement.diagnosis?.code || "—"}
+                  {n8nResponse && n8nResponse[0]?.response?.diagnosis?.code || "—"}
                 </span>{" "}
-                - {reimbursement.diagnosis?.description || "No especificado"}
+                - {n8nResponse && n8nResponse[0]?.response?.diagnosis?.description || "No especificado"}
               </div>
             </div>
           </div>
@@ -231,9 +288,9 @@ const ClaimReimbursement = () => {
               <h3 className="text-base font-semibold">Ítems Aprobados</h3>
             </div>
             <div className="p-4">
-              {reimbursement.approvedItems?.length > 0 ? (
+              {n8nResponse && n8nResponse[0]?.response?.approvedItems?.length > 0 ? (
                 <ul className="space-y-2 text-sm">
-                  {reimbursement.approvedItems.map((item, idx) => (
+                  {(n8nResponse[0].response.approvedItems || []).map((item, idx) => (
                     <li
                       key={idx}
                       className="flex justify-between border-b border-border pb-2"
@@ -260,11 +317,19 @@ const ClaimReimbursement = () => {
               <h3 className="text-base font-semibold">Justificación</h3>
             </div>
             <div className="p-4 text-sm text-text-secondary">
-              {reimbursement.justification || "No disponible"}
+              {n8nResponse && n8nResponse[0]?.response?.justification || "No disponible"}
             </div>
           </div>
         </div>
       </main>
+
+      {/* Modal de respuesta del N8N */}
+      <ResponseModal
+        isOpen={responseModalOpen}
+        onClose={handleCloseResponseModal}
+        responseData={responseData}
+        fullResponseData={n8nResponse}
+      />
     </div>
   );
 };

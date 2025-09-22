@@ -33,7 +33,7 @@ const FormActions = ({
   };
 
   return (
-    <div className="bg-card border border-border rounded-lg shadow-sm">
+    <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden">
       <div className="p-6">
         {/* Save Status */}
         <div className="flex items-center justify-between mb-6">
@@ -69,13 +69,13 @@ const FormActions = ({
         {/* Action Buttons */}
         <div className="space-y-4">
           {/* Primary Actions */}
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 min-w-0">
             <Button
               variant="outline"
               onClick={onSaveDraft}
               loading={isDraftSaving}
               disabled={isLoading}
-              className="flex-1 sm:flex-none"
+              className="flex-1 sm:flex-none min-w-0 px-6 py-3"
               iconName="Save"
               iconPosition="left"
             >
@@ -87,15 +87,12 @@ const FormActions = ({
               onClick={onSubmit}
               loading={isLoading}
               disabled={false}
-              className="flex-1"
+              className="flex-1 min-w-0 px-6 py-3"
               iconName="Send"
               iconPosition="left"
-              style={{
-                position: 'absolute'
-              }}
-
             >
-              Enviar para Revisión
+              <span className="hidden sm:inline">Enviar para Revisión</span>
+              <span className="sm:hidden">Enviar</span>
             </Button>
           </div>
 

@@ -25,8 +25,119 @@ const Badge = ({ children, tone = 'default' }) => {
   );
 };
 
+// 🔹 Componente para detalles colapsables específicos
+const CollapsibleDetail = ({ title, data, level = 0, showAsJson = false }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const indentClass = `ml-${level * 4}`;
+  
+  if (data === null || data === undefined) {
+    return <span className="italic text-text-secondary">—</span>;
+  }
+  
+  if (typeof data === 'boolean') {
+    return <span>{data ? 'Sí' : 'No'}</span>;
+  }
+  
+  if (typeof data === 'string' || typeof data === 'number') {
+    return <span>{String(data)}</span>;
+  }
+  
+  if (Array.isArray(data)) {
+    if (data.length === 0) {
+      return <span className="italic text-text-secondary">[vacío]</span>;
+    }
+    
+    return (
+      <div className={indentClass}>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center gap-1 text-xs font-medium text-text-secondary hover:text-foreground transition-colors"
+        >
+          <span className={`transition-transform ${isOpen ? 'rotate-90' : ''}`}>▶</span>
+          <span>{title}</span>
+        </button>
+        {isOpen && (
+          <div className="ml-4 mt-1 space-y-1">
+            {data.map((item, idx) => (
+              <div key={idx} className="text-xs">
+                <span className="text-text-secondary">[{idx + 1}]:</span>{' '}
+                <CollapsibleDetail data={item} level={level + 1} showAsJson={showAsJson} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  if (typeof data === 'object') {
+    const entries = Object.entries(data);
+    if (entries.length === 0) {
+      return <span className="italic text-text-secondary">[vacío]</span>;
+    }
+    
+    return (
+      <div className={indentClass}>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center gap-1 text-xs font-medium text-text-secondary hover:text-foreground transition-colors"
+        >
+          <span className={`transition-transform ${isOpen ? 'rotate-90' : ''}`}>▶</span>
+          <span>{title}</span>
+        </button>
+        {isOpen && (
+          <div className="ml-4 mt-1 space-y-1">
+            {showAsJson && level === 0 ? (
+              // Mostrar como JSON formateado solo en el nivel raíz
+              <div className="bg-gray-50 border border-gray-200 rounded p-4 max-h-96 overflow-auto">
+                <pre className="text-xs text-gray-800 whitespace-pre-wrap break-words">
+                  {JSON.stringify(data, null, 2)}
+                </pre>
+              </div>
+            ) : (
+              // Mostrar como estructura colapsable normal
+              entries.map(([key, value]) => (
+                <div key={key} className="text-xs">
+                  <span className="font-medium text-text-secondary">{key}:</span>{' '}
+                  <CollapsibleDetail data={value} level={level + 1} showAsJson={showAsJson} />
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  return <span>{String(data)}</span>;
+};
+
 // 🔹 Renderizador flexible de detalle (strings, bool, objetos, arrays)
-const RenderDetalle = ({ detalle }) => {
+const RenderDetalle = ({ detalle, checkName, resumen }) => {
+  // Para el check específico de capas múltiples, mostrar recomendación + detalle colapsable
+  if (checkName === "Presencia de capas múltiples (análisis integrado)") {
+    return (
+      <div className="space-y-2">
+        {/* Mostrar recomendaciones si existen */}
+        {resumen?.recommendations && resumen.recommendations.length > 0 && (
+          <div className="text-xs">
+            <div className="font-medium text-text-secondary mb-1">Recomendación:</div>
+            <div className="bg-blue-50 border border-blue-200 rounded p-2">
+              {resumen.recommendations.map((rec, idx) => (
+                <div key={idx} className="text-blue-800">• {rec}</div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Detalle técnico como JSON formateado con opción de expandir/contraer */}
+        <div className="text-xs">
+          <CollapsibleDetail title="Detalle técnico" data={detalle} showAsJson={true} />
+        </div>
+      </div>
+    );
+  }
+  
   if (detalle === null || detalle === undefined)
     return <span className="italic text-text-secondary">—</span>;
   if (typeof detalle === 'boolean') return <span>{detalle ? 'Sí' : 'No'}</span>;
@@ -40,7 +151,7 @@ const RenderDetalle = ({ detalle }) => {
       <ul className="list-disc list-inside text-xs break-words">
         {detalle.map((item, idx) => (
           <li key={idx}>
-            <RenderDetalle detalle={item} />
+            <RenderDetalle detalle={item} checkName={checkName} resumen={resumen} />
           </li>
         ))}
       </ul>
@@ -53,7 +164,7 @@ const RenderDetalle = ({ detalle }) => {
         {Object.entries(detalle).map(([k, v]) => (
           <div key={k}>
             <span className="font-medium">{k}:</span>{' '}
-            <RenderDetalle detalle={v} />
+            <RenderDetalle detalle={v} checkName={checkName} resumen={resumen} />
           </div>
         ))}
       </div>
@@ -167,6 +278,10 @@ const getAdjustedScore = (doc) => {
       if (score >= min && score <= max) {
         return levelName;
       }
+    }
+    // Si el score es mayor a 100, considerarlo como rechazado
+    if (score > 100) {
+      return 'rechazado';
     }
     return 'unknown';
   };
@@ -285,15 +400,14 @@ const getAdjustedScore = (doc) => {
   const sendClaimToBackend = async () => {
     try {
       const claimPayload = buildClaimPayload();
-      console.log('🚀 Enviando reclamo automáticamente:', claimPayload);
-
-      const CLAIMS_API_URL = 'https://api-forense.nextisolutions.com/reclamos';
+      const CLAIMS_API_URL = 'http://127.0.0.1:8001/reclamos';
 
       const res = await fetch(CLAIMS_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(claimPayload),
       });
+
 
       const data = await res.json().catch(() => ({}));
 
@@ -329,11 +443,16 @@ const getAdjustedScore = (doc) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
+
       const data = await res.json().catch(() => ({}));
+
+      console.log('Respuesta del N8N:', data);
       if (!res.ok) {
         throw new Error(data?.message || data?.error || `HTTP ${res.status}`);
       }
       setSendMsg({ ok: true, text: 'Enviado a n8n correctamente.' });
+
+
 
       navigate('/claim-reimbursement', {
         state: {
@@ -647,11 +766,8 @@ const getAdjustedScore = (doc) => {
                                           <span className="ml-2 font-mono">{item.penalizacion}</span>
                                         </div>
                                         {!isDetalleEmpty(item.detalle) && (
-                                          <div className="text-xs">
-                                            <div className="font-medium text-text-secondary mb-1">Detalle técnico:</div>
-                                            <div className="p-2 bg-card border border-border rounded text-xs">
-                                              <RenderDetalle detalle={item.detalle} />
-                                            </div>
+                                          <div className="p-2 bg-card border border-border rounded text-xs">
+                                            <RenderDetalle detalle={item.detalle} checkName={item.check} resumen={item.resumen} />
                                           </div>
                                         )}
                                       </div>

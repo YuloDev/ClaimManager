@@ -31,11 +31,15 @@ const initialForm = {
 
 const VALIDATOR_FACTURA_URL =
   import.meta.env.VITE_VALIDATOR_FACTURA_URL ||
-  'https://api-forense.nextisolutions.com/validar-factura';
+  'http://127.0.0.1:8001/validar-factura-nuevo';
 
 const VALIDATOR_DOC_URL =
   import.meta.env.VITE_VALIDATOR_DOC_URL ||
-  'https://api-forense.nextisolutions.com/validar-documento';
+  'http://127.0.0.1:8001/validar-documento';
+
+const VALIDATOR_IMAGE_URL =
+  import.meta.env.VITE_VALIDATOR_IMAGE_URL ||
+  'http://127.0.0.1:8001/validar-imagen';
 
 const REQUIRED_FIELDS = [
   'patientInfo.fullName',
@@ -84,6 +88,20 @@ const fileToBase64 = (file) =>
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+
+// Función para detectar si un archivo es una imagen
+const isImageFile = (mimeType) => {
+  const imageTypes = [
+    'image/jpeg',
+    'image/jpg', 
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/bmp',
+    'image/tiff'
+  ];
+  return imageTypes.includes(mimeType?.toLowerCase());
+};
 
 // Construye el JSON con payload + archivos (incluye base64)
 const buildJsonPayload = async (formDataState, uploadedFiles /* [{file, documentType, ...}] */) => {
@@ -200,15 +218,25 @@ async function fetchWithRetry(url, options, maxRetries = 3, delay = 1000) {
   }
 }
 
-async function validateDocumento(pdfBase64, documentType) {
-  const url =
-    documentType === 'factura'
-      ? VALIDATOR_FACTURA_URL
-      : VALIDATOR_DOC_URL;
+async function validateDocumento(pdfBase64, documentType, mimeType) {
+  // Determinar el endpoint según el tipo de documento y si es imagen
+  let url;
+  let requestBody;
+  
+  if (documentType === 'factura' && isImageFile(mimeType)) {
+    url = VALIDATOR_IMAGE_URL;
+    requestBody = { imagen_base64: pdfBase64 }; // Usar el parámetro correcto para imágenes
+  } else if (documentType === 'factura') {
+    url = VALIDATOR_FACTURA_URL;
+    requestBody = { pdfbase64: pdfBase64 }; // Mantener el parámetro original para PDFs
+  } else {
+    url = VALIDATOR_DOC_URL;
+    requestBody = { pdfbase64: pdfBase64 }; // Mantener el parámetro original para otros documentos
+  }
 
   try {
     // ▶️ Hacer las peticiones de forma secuencial para evitar sobrecarga del servidor
-    console.log(`🔍 Validando documento tipo: ${documentType}`);
+    console.log(`🔍 Validando documento tipo: ${documentType}${isImageFile(mimeType) ? ' (imagen)' : ''}`);
     
     // Primera petición: validación principal
     const mainRes = await fetchWithRetry(url, {
@@ -218,20 +246,43 @@ async function validateDocumento(pdfBase64, documentType) {
         'accept': 'application/json',
         'Access-Control-Allow-Origin': '*'
       },
-      body: JSON.stringify({ pdfbase64: pdfBase64 }),
+      body: JSON.stringify(requestBody),
     });
 
     const mainData = await mainRes.json().catch(() => ({}));
 
     if (!mainRes.ok) {
-      throw new Error(mainData?.detail || mainData?.message || 'Error al validar documento');
+      // Mejorar el manejo de errores para diferentes tipos de respuestas
+      let errorMessage = 'Error al validar documento';
+      
+      if (mainData?.detail) {
+        errorMessage = typeof mainData.detail === 'string' ? mainData.detail : JSON.stringify(mainData.detail);
+      } else if (mainData?.message) {
+        errorMessage = typeof mainData.message === 'string' ? mainData.message : JSON.stringify(mainData.message);
+      } else if (mainData?.error) {
+        errorMessage = typeof mainData.error === 'string' ? mainData.error : JSON.stringify(mainData.error);
+      } else if (Object.keys(mainData).length > 0) {
+        errorMessage = `Error del servidor: ${JSON.stringify(mainData)}`;
+      } else {
+        errorMessage = `Error HTTP ${mainRes.status}: ${mainRes.statusText}`;
+      }
+      
+      throw new Error(errorMessage);
     }
 
 
     return mainData;
   } catch (err) {
     console.error('❌ Error en validación de documento:', err);
-    throw err;
+    
+    // Asegurar que el error tenga un mensaje legible
+    if (err instanceof Error) {
+      throw err;
+    } else {
+      // Si no es un Error, crear uno con el mensaje apropiado
+      const errorMessage = typeof err === 'string' ? err : JSON.stringify(err);
+      throw new Error(errorMessage);
+    }
   }
 }
 
@@ -265,8 +316,8 @@ async function validateDocumento(pdfBase64, documentType) {
 
         try {
           console.log(`📄 Procesando documento ${i + 1}/${jsonBody.files.length}: ${f.filename}`);
-          // ✅ Aquí elegimos el endpoint según el tipo de documento
-          const validation = await validateDocumento(f.base64, f.documentType);
+          // ✅ Aquí elegimos el endpoint según el tipo de documento y si es imagen
+          const validation = await validateDocumento(f.base64, f.documentType, f.mimeType);
           results.push({ ...meta, validation, skipped: false });
           
           // Pequeño delay entre documentos para no sobrecargar el servidor
@@ -275,7 +326,18 @@ async function validateDocumento(pdfBase64, documentType) {
           }
         } catch (err) {
           console.error(`❌ Error validando ${f.filename}:`, err);
-          results.push({ ...meta, validationError: String(err?.message || err), skipped: false });
+          
+          // Asegurar que el mensaje de error sea legible
+          let errorMessage = 'Error desconocido';
+          if (err instanceof Error) {
+            errorMessage = err.message;
+          } else if (typeof err === 'string') {
+            errorMessage = err;
+          } else if (err && typeof err === 'object') {
+            errorMessage = JSON.stringify(err);
+          }
+          
+          results.push({ ...meta, validationError: errorMessage, skipped: false });
         }
       }
 
