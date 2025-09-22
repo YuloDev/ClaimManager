@@ -1,5 +1,5 @@
 // Servicio para gestión de riesgo (pesos y niveles)
-const API_BASE_URL = 'ttps://api-forense.nextisolutions.com';
+const API_BASE_URL = 'https://api-forense.nextisolutions.com';
 //http://127.0.0.1:8001
 
 export const riskService = {

@@ -31,15 +31,15 @@ const initialForm = {
 
 const VALIDATOR_FACTURA_URL =
   import.meta.env.VITE_VALIDATOR_FACTURA_URL ||
-  'ttps://api-forense.nextisolutions.com/validar-factura-nuevo';
+  'https://api-forense.nextisolutions.com/validar-factura-nuevo';
 
 const VALIDATOR_DOC_URL =
   import.meta.env.VITE_VALIDATOR_DOC_URL ||
-  'ttps://api-forense.nextisolutions.com/validar-documento';
+  'https://api-forense.nextisolutions.com/validar-documento';
 
 const VALIDATOR_IMAGE_URL =
   import.meta.env.VITE_VALIDATOR_IMAGE_URL ||
-  'ttps://api-forense.nextisolutions.com/validar-imagen';
+  'https://api-forense.nextisolutions.com/validar-imagen';
 
 const REQUIRED_FIELDS = [
   'patientInfo.fullName',

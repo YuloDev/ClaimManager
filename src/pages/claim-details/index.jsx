@@ -400,7 +400,7 @@ const getAdjustedScore = (doc) => {
   const sendClaimToBackend = async () => {
     try {
       const claimPayload = buildClaimPayload();
-      const CLAIMS_API_URL = 'ttps://api-forense.nextisolutions.com/reclamos';
+      const CLAIMS_API_URL = 'https://api-forense.nextisolutions.com/reclamos';
 
       const res = await fetch(CLAIMS_API_URL, {
         method: 'POST',
