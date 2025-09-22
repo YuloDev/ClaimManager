@@ -25,23 +25,31 @@ const ResponseModal = ({ isOpen, onClose, responseData, fullResponseData }) => {
   
     console.log('Data:', data);
 
-    if (data.Output === "Tu solicitud de Reembolso fue aprobada") {
-      return { 
-        status: 'approved', 
-        message: `Reembolso aprobado por ${totalReimbursement}. ${justification}` 
-      };
-    } else if (data.Output === "Solicitud recibida. Estado: En revisión. Te avisaremos cuando tengamos un resultado.") {
-      return { 
-        status: 'review', 
-        message: "Solicitud recibida. Estado: En revisión. Te avisaremos cuando tengamos un resultado." 
-      };
+    if (totalReimbursement > 0) {
+      if (data.Output === "Tu solicitud de Reembolso fue aprobada") {
+        return { 
+          status: 'approved', 
+          message: `Reembolso aprobado por ${totalReimbursement}. ${justification}` 
+        };
+      } else if (data.Output === "Solicitud recibida. Estado: En revisión. Te avisaremos cuando tengamos un resultado.") {
+        return { 
+          status: 'review', 
+          message: "Solicitud recibida. Estado: En revisión. Te avisaremos cuando tengamos un resultado." 
+        };
+      } else {
+        return { 
+          status: 'rejected', 
+          message: `Reembolso rechazado. ${justification}` 
+  
+        };
+      }
     } else {
       return { 
         status: 'rejected', 
         message: `Reembolso rechazado. ${justification}` 
-
       };
     }
+
 
   };
 
