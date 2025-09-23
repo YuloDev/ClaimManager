@@ -241,7 +241,7 @@ const getAdjustedScore = (doc) => {
 
   const N8N_WEBHOOK_URL =
     import.meta.env.VITE_N8N_WEBHOOK_URL ||
-    'https://n8n.nextisolutions.com/webhook/0e0fbc40-aacc-48d1-b7e6-84798aa4e3d1';
+    'https://n8n.nextisolutions.com/webhook-test/0e0fbc40-aacc-48d1-b7e6-84798aa4e3d1';
 
   const EMBED_URL =
     import.meta.env.VITE_EMBED_URL ||
