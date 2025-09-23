@@ -15,31 +15,25 @@ import Icon from '../../components/AppIcon';
 
 const initialForm = {
   patientInfo: {
-    fullName: 'JIMENEZ BENAVIDES ONAUR JUMANDY ',
-    identification: '1701020304',
-    birthDate: '2002-07-14',
-    gender: 'male',
-    phone: '0992880198',
-    email: '',
-    relationship: 'self',
-    policyNumber: 'POL-2024-002',
-    address: '',
-    careType: 'hospitalario',
+    fullName: "David Ruben Balseca Kekal",
+    identification: "0910854439",
+    birthDate: "2002-07-14",
+    gender: "male",
+    phone: "0992880198",
+    email: "",
+    relationship: "self",
+    policyNumber: "POL-2024-002",
+    address: "",
+    careType: "hospitalario"
   },
   diagnosis: { totalAmount: '1500' }
 };
 
-const VALIDATOR_FACTURA_URL =
-  import.meta.env.VITE_VALIDATOR_FACTURA_URL ||
-  'https://api-forense.nextisolutions.com/validar-factura-nuevo';
 
-const VALIDATOR_DOC_URL =
-  import.meta.env.VITE_VALIDATOR_DOC_URL ||
-  'https://api-forense.nextisolutions.com/validar-documento';
+const N8N_WEBHOOK_URL =
+  'https://n8n.nextisolutions.com/webhook-test/82233671-8aeb-4940-9f9a-2f5ff872844f';
 
-const VALIDATOR_IMAGE_URL =
-  import.meta.env.VITE_VALIDATOR_IMAGE_URL ||
-  'https://api-forense.nextisolutions.com/validar-imagen';
+  
 
 const REQUIRED_FIELDS = [
   'patientInfo.fullName',
@@ -80,6 +74,7 @@ const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
+    
       const result = reader.result || '';
       const commaIdx = result.indexOf(',');
       const base64 = commaIdx >= 0 ? result.slice(commaIdx + 1) : result;
@@ -103,6 +98,61 @@ const isImageFile = (mimeType) => {
   return imageTypes.includes(mimeType?.toLowerCase());
 };
 
+// Función para mapear el tipo de documento según las reglas del webhook
+const mapDocumentTypeForWebhook = (documentType, mimeType) => {
+  if (documentType === 'factura') {
+    return 'factura';
+  }
+  
+  if (isImageFile(mimeType)) {
+    return 'imagenes';
+  }
+  
+  // Para recetas, diagnósticos y otros documentos
+  if (documentType === 'receta' || documentType === 'diagnostico' || documentType === 'documento') {
+    return 'documentos';
+  }
+  
+  return 'documentos'; // valor por defecto
+};
+
+// Construye el payload específico para el webhook de n8n
+const buildWebhookPayload = async (formDataState, uploadedFiles) => {
+  const documents = await Promise.all(
+    (uploadedFiles || []).map(async (item) => {
+      const f = item?.file;
+      if (!(f instanceof File)) return null;
+      
+      const base64 = await fileToBase64(f);
+      const webhookType = mapDocumentTypeForWebhook(
+        item?.documentType || 'documento', 
+        f.type
+      );
+      
+      return {
+        pdfBase64: base64,
+        type: webhookType
+      };
+    })
+  );
+
+  return {
+    documents: documents.filter(Boolean),
+    patientInfo: {
+      fullName: formDataState.patientInfo?.fullName || '',
+      identification: formDataState.patientInfo?.identification || '',
+      birthDate: formDataState.patientInfo?.birthDate || '',
+      gender: formDataState.patientInfo?.gender || '',
+      phone: formDataState.patientInfo?.phone || '',
+      email: formDataState.patientInfo?.email || '',
+      relationship: formDataState.patientInfo?.relationship || '',
+      policyNumber: formDataState.patientInfo?.policyNumber || '',
+      address: formDataState.patientInfo?.address || '',
+      careType: formDataState.patientInfo?.careType || ''
+    }
+  };
+};
+
 // Construye el JSON con payload + archivos (incluye base64)
 const buildJsonPayload = async (formDataState, uploadedFiles /* [{file, documentType, ...}] */) => {
   const files = await Promise.all(
@@ -112,7 +162,6 @@ const buildJsonPayload = async (formDataState, uploadedFiles /* [{file, document
       const base64 = await fileToBase64(f);
       return {
         index: idx,
-        filename: f.name || `file${idx}`,
         mimeType: f.type || 'application/octet-stream',
         size: f.size || 0,
         documentType: (item?.documentType || 'factura').toLowerCase(), // 'factura' | 'receta' | ...
@@ -286,11 +335,56 @@ async function validateDocumento(pdfBase64, documentType, mimeType) {
   }
 }
 
+// Función para enviar datos al webhook de n8n
+async function sendToN8nWebhook(webhookPayload) {
+  try {
+    console.log('📤 Enviando datos al webhook de n8n...');
+    console.log('🔗 URL del webhook:', N8N_WEBHOOK_URL);
+    console.log('📦 Payload a enviar:', JSON.stringify(webhookPayload, null, 2));
+    
+    const response = await fetch("https://n8n.nextisolutions.com/webhook-test/82233671-8aeb-4940-9f9a-2f5ff872844f", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(webhookPayload)
+    });
+
+    console.log('📊 Status de respuesta:', response.status);
+    console.log('📋 Headers de respuesta:', Object.fromEntries(response.headers.entries()));
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ Error en respuesta del webhook:', errorData);
+      throw new Error(`Error HTTP ${response.status}: ${errorData?.message || response.statusText}`);
+    }
+
+    const responseData = await response.json().catch(() => ({}));
+    console.log('✅ Datos enviados exitosamente al webhook');
+    console.log('📥 Respuesta del webhook:', JSON.stringify(responseData, null, 2));
+    return responseData;
+  } catch (error) {
+    console.error('❌ Error enviando datos al webhook:', error);
+    console.error('📄 Detalles del error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    throw error;
+  }
+}
+
 
 
   const handleSubmit = useCallback(async () => {
     const v = validate(formData);
     setErrors(v);
+
+    if (Object.keys(v).length > 0) {
+      console.log('Formulario contiene errores, por favor corregir antes de enviar');
+      return;
+    }
 
     if (uploadedFiles.length === 0) {
       console.log('Debe subir al menos un documento');
@@ -299,78 +393,49 @@ async function validateDocumento(pdfBase64, documentType, mimeType) {
 
     setIsLoading(true);
     try {
-      // 1) Construir payload con base64
-      const jsonBody = await buildJsonPayload(formData, uploadedFiles);
+      // 1) Construir payload específico para el webhook de n8n
+      const webhookPayload = await buildWebhookPayload(formData, uploadedFiles);
+      
+      console.log('📋 Payload para webhook:', webhookPayload);
 
-      // 2) Validar en el API cada documento según su tipo (secuencialmente para evitar CORS)
-      const results = [];
-      for (let i = 0; i < jsonBody.files.length; i++) {
-        const f = jsonBody.files[i];
-        const meta = {
-          index: f.index,
-          filename: f.filename,
-          mimeType: f.mimeType,
-          size: f.size,
-          documentType: f.documentType,
-        };
-
-        try {
-          console.log(`📄 Procesando documento ${i + 1}/${jsonBody.files.length}: ${f.filename}`);
-          // ✅ Aquí elegimos el endpoint según el tipo de documento y si es imagen
-          const validation = await validateDocumento(f.base64, f.documentType, f.mimeType);
-          results.push({ ...meta, validation, skipped: false });
-          
-          // Pequeño delay entre documentos para no sobrecargar el servidor
-          if (i < jsonBody.files.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        } catch (err) {
-          console.error(`❌ Error validando ${f.filename}:`, err);
-          
-          // Asegurar que el mensaje de error sea legible
-          let errorMessage = 'Error desconocido';
-          if (err instanceof Error) {
-            errorMessage = err.message;
-          } else if (typeof err === 'string') {
-            errorMessage = err;
-          } else if (err && typeof err === 'object') {
-            errorMessage = JSON.stringify(err);
-          }
-          
-          results.push({ ...meta, validationError: errorMessage, skipped: false });
-        }
+      // 2) Enviar al webhook de n8n
+      const webhookResponse = await sendToN8nWebhook(webhookPayload);
+      
+      // 3) Verificar si el usuario tiene póliza válida
+      console.log('🎯 Respuesta completa del webhook n8n:', webhookResponse);
+      console.log('🔍 Tipo de respuesta:', typeof webhookResponse);
+      console.log('🔍 Es array?:', Array.isArray(webhookResponse));
+      console.log('🔍 Longitud si es array:', Array.isArray(webhookResponse) ? webhookResponse.length : 'No es array');
+      console.log('🔍 Keys del objeto:', typeof webhookResponse === 'object' ? Object.keys(webhookResponse) : 'No es objeto');
+      
+      // Verificar si la respuesta es un array vacío específicamente
+      const isEmptyArray = Array.isArray(webhookResponse) && webhookResponse.length === 0;
+      
+      if (isEmptyArray) {
+        // Usuario no tiene póliza válida - mostrar error y mantener en la misma pantalla
+        console.log('❌ El usuario no tiene póliza válida - Array vacío recibido');
+        alert('Lo sentimos, no se encontró una póliza válida para este usuario. Por favor, verifique los datos ingresados.');
+        return; // No navegar, mantener al usuario en la misma pantalla
       }
-
-      // 3) Adjuntar también los archivos como attachments (truncados si no son facturas)
-      const TRUNCATE_BASE64 = true;
-      const MAX_BASE64_CHARS = 2_000_000; // ~1.5MB aprox
-      const attachments = jsonBody.files.map((f) => {
-        const raw = String(f.base64 || '');
-        const truncated = TRUNCATE_BASE64 && raw.length > MAX_BASE64_CHARS;
-        const base64 = truncated ? raw.slice(0, MAX_BASE64_CHARS) : raw;
-        return {
-          index: f.index,
-          filename: f.filename,
-          mimeType: f.mimeType,
-          size: f.size,
-          documentType: f.documentType,
-          base64,
-          truncated,
-        };
+      
+      // 4) Si tiene póliza válida, continuar con el proceso
+      console.log('✅ Reclamación enviada exitosamente - Usuario tiene póliza válida');
+      
+      // 5) Navegar a la página de detalles con todos los datos necesarios
+      navigate('/claim-details', { 
+        state: { 
+          webhookResponse,           // Respuesta del webhook n8n con datos de póliza
+          submittedData: webhookPayload,  // Datos enviados originalmente
+          formData: formData,        // Datos del formulario para el resumen
+          isWebhookSubmission: true
+        } 
       });
-
-      // 4) Armar objeto para la siguiente vista (sin webhook)
-      const apiPayload = {
-        patientInfo: jsonBody.payload.patientInfo,
-        diagnosis: jsonBody.payload.diagnosis,
-        results,        // respuestas del validador por cada documento
-        attachments,    // todos los documentos con base64 (facturas + otros)
-      };
-
-      // 5) Navegar y mostrar en ClaimDetails
-      navigate('/claim-details', { state: { apiResponse: apiPayload } });
+      
     } catch (error) {
-      console.error('Error en validación:', error);
+      console.error('❌ Error al enviar reclamación:', error);
+      
+      // Mostrar error al usuario (podrías usar un toast o modal aquí)
+      alert(`Error al enviar la reclamación: ${error.message}`);
     } finally {
       setIsLoading(false);
     }

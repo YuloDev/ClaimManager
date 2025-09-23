@@ -241,19 +241,97 @@ const getAdjustedScore = (doc) => {
 
   const N8N_WEBHOOK_URL =
     import.meta.env.VITE_N8N_WEBHOOK_URL ||
-    'https://n8n.nextisolutions.com/webhook-test/3767beb5-1550-4824-8ec9-ca5810946cb8';
+    'https://n8n.nextisolutions.com/webhook/0e0fbc40-aacc-48d1-b7e6-84798aa4e3d1';
 
   const EMBED_URL =
     import.meta.env.VITE_EMBED_URL ||
     'https://n8n.nextisolutions.com/workflow/Wf0FgM2AETDcrbli';
 
-  const apiResponse = useMemo(
-    () => location?.state?.apiResponse ?? null,
-    [location?.state?.apiResponse]
+  // Obtener datos desde la página anterior (claim-submission)
+  const webhookResponse = useMemo(
+    () => location?.state?.webhookResponse ?? null,
+    [location?.state?.webhookResponse]
   );
+  
+  const formData = useMemo(
+    () => location?.state?.formData ?? null,
+    [location?.state?.formData]
+  );
+  
+  const submittedData = useMemo(
+    () => location?.state?.submittedData ?? null,
+    [location?.state?.submittedData]
+  );
+  
+  const isWebhookSubmission = location?.state?.isWebhookSubmission ?? false;
 
-  const patientInfo = apiResponse?.patientInfo || {};
-  const diagnosis = apiResponse?.diagnosis || {};
+  // Logs para debugging
+  console.log('📋 Datos recibidos en claim-details:');
+  console.log('🔗 webhookResponse:', webhookResponse);
+  console.log('📝 formData:', formData);
+  console.log('📤 submittedData:', submittedData);
+  console.log('🎯 isWebhookSubmission:', isWebhookSubmission);
+
+  // Usar datos del formulario para el resumen del caso
+  const patientInfo = formData?.patientInfo || {};
+  const diagnosis = formData?.diagnosis || {};
+  
+  // Procesar la respuesta del webhook para convertirla al formato esperado
+  const processWebhookResponse = (webhookData, submittedDocuments) => {
+    if (!Array.isArray(webhookData)) return [];
+    
+    return webhookData.map((docResponse, index) => {
+      const submittedDoc = submittedDocuments?.[index] || {};
+      
+      return {
+        index: index,
+        filename: docResponse.filename || `Documento ${index + 1}`,
+        mimeType: submittedDoc.type === 'factura' ? 'application/pdf' : 
+                  submittedDoc.type === 'imagenes' ? 'image/jpeg' : 'application/pdf',
+        size: 0, // No tenemos el tamaño en la respuesta
+        documentType: submittedDoc.type || 'documento',
+        validation: {
+          mensaje: docResponse.data?.mensaje || 'Documento procesado',
+          riesgo: {
+            score: docResponse.data?.validation_data?.riesgo?.score || 0,
+            nivel: docResponse.data?.validation_data?.riesgo?.nivel || 'bajo',
+            es_falso_probable: docResponse.data?.validation_data?.riesgo?.es_falso_probable || false,
+            prioritarias: docResponse.data?.validation_data?.riesgo?.prioritarias || [],
+            secundarias: docResponse.data?.validation_data?.riesgo?.secundarias || [],
+            adicionales: docResponse.data?.validation_data?.riesgo?.adicionales || []
+          },
+          sri_verificado: docResponse.data?.validation_data?.sri_verificado || false,
+          factura: docResponse.data?.document_parser?.factura || null, // Corregido para acceder a la estructura correcta
+          success: docResponse.success || false
+        },
+        validationError: !docResponse.success ? 'Error en la validación del documento' : null
+      };
+    });
+  };
+
+  // Para compatibilidad con el código existente, mantener apiResponse
+  const apiResponse = useMemo(() => {
+    if (isWebhookSubmission && webhookResponse) {
+      console.log('🔄 Procesando respuesta del webhook...');
+      
+      // Si la respuesta es directamente el array de documentos
+      const webhookData = Array.isArray(webhookResponse) ? webhookResponse : [webhookResponse];
+      const processedResults = processWebhookResponse(webhookData, submittedData?.documents || []);
+      
+      console.log('📊 Resultados procesados:', processedResults);
+      
+      return {
+        patientInfo: formData?.patientInfo || {},
+        diagnosis: formData?.diagnosis || {},
+        results: processedResults,
+        attachments: submittedData?.documents || [],
+        webhookResponse: webhookResponse
+      };
+    }
+    // Si viene del flujo anterior, usar el formato anterior
+    return location?.state?.apiResponse ?? null;
+  }, [location?.state?.apiResponse, formData, submittedData, webhookResponse, isWebhookSubmission]);
+
   const results = Array.isArray(apiResponse?.results) ? apiResponse.results : [];
   const attachments = Array.isArray(apiResponse?.attachments) ? apiResponse.attachments : [];
 
@@ -381,18 +459,38 @@ const getAdjustedScore = (doc) => {
       observaciones: `Reclamo procesado automáticamente. Estado determinado por validaciones: ${validated.length} documento(s) evaluado(s).`,
     };
   };
-
+  
   const buildWebhookBody = () => {
+    // Calcular score total de todos los documentos válidos
+    const validDocs = results.filter(doc => !doc.validationError && doc.validation?.riesgo?.score !== undefined);
+    const scoreTotal = validDocs.length > 0 
+      ? Math.round(validDocs.reduce((sum, doc) => sum + getAdjustedScore(doc), 0) / validDocs.length)
+      : 0;
+    
+    // Agregar score total a patientInfo
+    const patientInfoWithScore = {
+      ...patientInfo,
+      scoreTotal: scoreTotal
+    };
+
+    // Extraer información de factura del primer documento válido
+    const firstValidDoc = validDocs[0];
+    const facturaInfo = firstValidDoc?.validation?.factura || null;
+    
     return {
       payload: {
-        patientInfo,
+        patientInfo: patientInfoWithScore,
         diagnosis,
+        factura: facturaInfo, // Información completa de la factura
       },
       validationResults: results,
       recetasResponse: apiResponse?.recetasResponse ?? null,
       meta: {
         source: 'ClaimDetails',
         sentAt: new Date().toISOString(),
+        totalDocuments: results.length,
+        validDocuments: validDocs.length,
+        averageScore: scoreTotal
       },
     };
   };

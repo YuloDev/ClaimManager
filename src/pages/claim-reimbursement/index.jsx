@@ -36,14 +36,36 @@ const ClaimReimbursement = () => {
       return;
     }
     
-    // La respuesta del N8N viene como un objeto con la estructura:
-    // { IsSuccess: true, Output: "...", response: { patient: {...}, diagnosis: {...}, approvedItems: [...], totalReimbursement: ..., justification: ... } }
+    // La respuesta del N8N viene con la estructura:
+    // { RuleId: "...", IsSuccess: true, Output: "...", NextStageId: null, ResponseType: "Text", output: { ... } }
     console.log('Datos de la respuesta:', n8nResponse);
     
-    // Guardar la respuesta completa
-    setN8nResponse([n8nResponse]); // Convertir a array para mantener compatibilidad
+    // Mapear la respuesta al formato esperado por el componente
+    const mappedResponse = {
+      IsSuccess: n8nResponse.IsSuccess,
+      Output: n8nResponse.Output,
+      response: {
+        patient: {
+          name: n8nResponse.output?.patient?.name || "—",
+          policyNumber: n8nResponse.output?.patient?.policyNumber || "—"
+        },
+        diagnosis: {
+          code: n8nResponse.output?.diagnosis?.code || "",
+          description: n8nResponse.output?.diagnosis?.description || "No especificado"
+        },
+        approvedItems: n8nResponse.output?.approvedItems || [],
+        totalReimbursement: n8nResponse.output?.totalReimbursement || 0,
+        justification: n8nResponse.output?.justification || "No disponible",
+        scoreTotal: n8nResponse.output?.scoreTotal || 0
+      }
+    };
+    
+    console.log('Respuesta mapeada:', mappedResponse);
+    
+    // Guardar la respuesta mapeada
+    setN8nResponse([mappedResponse]); // Convertir a array para mantener compatibilidad
     // Procesar y mostrar el modal automáticamente
-    setResponseData(n8nResponse);
+    setResponseData(mappedResponse);
     setResponseModalOpen(true);
     console.log('Modal abierto automáticamente con respuesta del N8N');
   };
@@ -126,6 +148,7 @@ const ClaimReimbursement = () => {
         <div class="section">
           <p><strong>Paciente:</strong> ${n8nResponse && n8nResponse[0]?.response?.patient?.name || "—"}</p>
           <p><strong>Póliza:</strong> ${n8nResponse && n8nResponse[0]?.response?.patient?.policyNumber || "—"}</p>
+          <p><strong>Score Total:</strong> ${n8nResponse && n8nResponse[0]?.response?.scoreTotal || 0}</p>
           <p><strong>Reembolso solicitado:</strong> ${formatMoney(requestedAmount)}</p>
           <p><strong>Reembolso aprobado:</strong> ${formatMoney(
             n8nResponse && n8nResponse[0]?.response?.totalReimbursement !== undefined ? n8nResponse[0].response.totalReimbursement : 0
@@ -235,7 +258,7 @@ const ClaimReimbursement = () => {
                 </div>
               )}
             </div>
-            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <div className="text-xs text-text-secondary">Paciente</div>
                 <div className="font-medium">
@@ -246,6 +269,12 @@ const ClaimReimbursement = () => {
                 <div className="text-xs text-text-secondary">Póliza</div>
                 <div className="font-medium">
                   {n8nResponse && n8nResponse[0]?.response?.patient?.policyNumber || "—"}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-text-secondary">Score Total</div>
+                <div className="font-medium">
+                  {n8nResponse && n8nResponse[0]?.response?.scoreTotal || 0}
                 </div>
               </div>
               <div>

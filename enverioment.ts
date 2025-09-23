@@ -1,0 +1,1 @@
+export const N8N_WEBHOOK_URL = 'https://n8n.nextisolutions.com/webhook/82233671-8aeb-4940-9f9a-2f5ff872844f';
