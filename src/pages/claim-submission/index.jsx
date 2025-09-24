@@ -100,12 +100,19 @@ const isImageFile = (mimeType) => {
 
 // Función para mapear el tipo de documento según las reglas del webhook
 const mapDocumentTypeForWebhook = (documentType, mimeType) => {
-  if (documentType === 'factura') {
+  // Si el usuario seleccionó "factura" pero es una imagen, enviar "Imagenes"
+  if (documentType === 'factura' && isImageFile(mimeType)) {
+    return 'imagenes';
+  }
+  
+  // Si el usuario seleccionó "factura" y NO es imagen, enviar "factura"
+  if (documentType === 'factura' && !isImageFile(mimeType)) {
     return 'factura';
   }
   
+  // Si es una imagen (independientemente del tipo seleccionado), enviar "Imagenes"
   if (isImageFile(mimeType)) {
-    return 'imagenes';
+    return 'Imagenes';
   }
   
   // Para recetas, diagnósticos y otros documentos
