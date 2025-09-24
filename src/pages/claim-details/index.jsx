@@ -244,7 +244,6 @@ const getAdjustedScore = (doc) => {
     'https://n8n.nextisolutions.com/webhook-test/0e0fbc40-aacc-48d1-b7e6-84798aa4e3d1';
 
   const EMBED_URL =
-    import.meta.env.VITE_EMBED_URL ||
     'https://n8n.nextisolutions.com/workflow/UN42SaY2IEND53iC';
 
   // Obtener datos desde la página anterior (claim-submission)
