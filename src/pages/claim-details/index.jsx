@@ -282,10 +282,13 @@ const getAdjustedScore = (doc) => {
     
     return webhookData.map((docResponse, index) => {
       const submittedDoc = submittedDocuments?.[index] || {};
-      
+
+
+      console.log('docResponse', docResponse);
+      console.log('filename', docResponse.filename);
       return {
         index: index,
-        filename: docResponse.filename || `Documento ${index + 1}`,
+        filename: docResponse.data.filename || `Documento ${index + 1}`,
         mimeType: submittedDoc.type === 'factura' ? 'application/pdf' : 
                   submittedDoc.type === 'imagenes' ? 'image/jpeg' : 'application/pdf',
         size: 0, // No tenemos el tamaño en la respuesta

@@ -122,7 +122,8 @@ const buildWebhookPayload = async (formDataState, uploadedFiles) => {
     (uploadedFiles || []).map(async (item) => {
       const f = item?.file;
       if (!(f instanceof File)) return null;
-      
+      const filename = f.name;
+      console.log('filename', filename);
       const base64 = await fileToBase64(f);
       const webhookType = mapDocumentTypeForWebhook(
         item?.documentType || 'documento', 
@@ -131,7 +132,8 @@ const buildWebhookPayload = async (formDataState, uploadedFiles) => {
       
       return {
         pdfBase64: base64,
-        type: webhookType
+        type: webhookType,
+        filename: filename
       };
     })
   );
