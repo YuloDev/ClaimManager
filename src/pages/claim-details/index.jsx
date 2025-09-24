@@ -245,7 +245,7 @@ const getAdjustedScore = (doc) => {
 
   const EMBED_URL =
     import.meta.env.VITE_EMBED_URL ||
-    'https://n8n.nextisolutions.com/workflow/Wf0FgM2AETDcrbli';
+    'https://n8n.nextisolutions.com/workflow/UN42SaY2IEND53iC';
 
   // Obtener datos desde la página anterior (claim-submission)
   const webhookResponse = useMemo(
