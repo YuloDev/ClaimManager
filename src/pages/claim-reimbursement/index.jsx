@@ -245,18 +245,53 @@ const ClaimReimbursement = () => {
                 <Icon name="DollarSign" size={18} className="text-primary" />
                 <h3 className="text-base font-semibold">Resumen de Reembolso</h3>
               </div>
-              {n8nResponse && n8nResponse[0]?.response && (
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${
-                    n8nResponse[0].response.totalReimbursement > 0 ? 'bg-green-500' : 'bg-red-500'
-                  }`}></div>
-                  <span className={`text-sm font-medium ${
-                    n8nResponse[0].response.totalReimbursement > 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {n8nResponse[0].response.totalReimbursement > 0 ? 'Aprobado' : 'Rechazado'}
-                  </span>
-                </div>
-              )}
+              {n8nResponse && n8nResponse[0]?.response && (() => {
+                // Usar la misma lógica que el modal para determinar el estado
+                const determineStatus = (data) => {
+                  const response = data.response;
+                  if (!response) return { status: 'unknown', message: 'Sin información' };
+                  
+                  const totalReimbursement = response.totalReimbursement || 0;
+                  
+                  if (totalReimbursement > 0) {
+                    if (data.Output === "Tu solicitud de Reembolso fue aprobada") {
+                      return { status: 'approved' };
+                    } else if (data.Output === "Solicitud recibida. Estado: En revisión. Te avisaremos cuando tengamos un resultado.") {
+                      return { status: 'review' };
+                    } else {
+                      return { status: 'rejected' };
+                    }
+                  } else {
+                    return { status: 'rejected' };
+                  }
+                };
+                
+                const statusInfo = determineStatus(n8nResponse[0]);
+                
+                const getStatusDisplay = (status) => {
+                  switch (status) {
+                    case 'approved':
+                      return { color: 'text-green-600', bgColor: 'bg-green-500', text: 'Aprobado' };
+                    case 'review':
+                      return { color: 'text-orange-600', bgColor: 'bg-orange-500', text: 'En Revisión' };
+                    case 'rejected':
+                      return { color: 'text-red-600', bgColor: 'bg-red-500', text: 'Rechazado' };
+                    default:
+                      return { color: 'text-gray-600', bgColor: 'bg-gray-500', text: 'Desconocido' };
+                  }
+                };
+                
+                const statusDisplay = getStatusDisplay(statusInfo.status);
+                
+                return (
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${statusDisplay.bgColor}`}></div>
+                    <span className={`text-sm font-medium ${statusDisplay.color}`}>
+                      {statusDisplay.text}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>

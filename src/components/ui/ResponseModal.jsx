@@ -144,10 +144,10 @@ const ResponseModal = ({ isOpen, onClose, responseData, fullResponseData }) => {
         )}
 
         {/* Score Total */}
-        {response.score_Total && (
+        {response.scoreTotal && (
           <div className="p-3 bg-muted rounded border">
             <div className="text-sm font-medium text-text-secondary mb-1">Score Total</div>
-            <div className="text-sm text-foreground">{response.score_Total}</div>
+            <div className="text-sm text-foreground">{response.scoreTotal}</div>
           </div>
         )}
       </div>
@@ -156,7 +156,7 @@ const ResponseModal = ({ isOpen, onClose, responseData, fullResponseData }) => {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="">
-      <div className="space-y-6">
+      <div className="space-y-6 p-6">
         {/* Status Header - Simplified */}
         <div className="text-center">
           <div className="flex justify-center mb-3">
@@ -185,21 +185,33 @@ const ResponseModal = ({ isOpen, onClose, responseData, fullResponseData }) => {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4 text-center">
-              {responseData.response.score_Total && (
-                <div>
-                  <div className="text-sm text-text-secondary mb-1">Score</div>
+            <div className="flex justify-center gap-4">
+              {/* Card de Reembolso */}
+              {responseData.response.totalReimbursement !== undefined && (
+                <div className="bg-white border-2 border-gray-200 rounded-lg p-4 text-center min-w-[120px]">
+                  <div className="text-sm text-text-secondary mb-1">Reembolso</div>
                   <div className="text-lg font-semibold">
-                    {responseData.response.score_Total}
+                    ${responseData.response.totalReimbursement}
                   </div>
                 </div>
               )}
 
-              {responseData.response.totalReimbursement !== undefined && (
-                <div>
-                  <div className="text-sm text-text-secondary mb-1">Reembolso</div>
-                  <div className="text-lg font-semibold">
-                    ${responseData.response.totalReimbursement}
+              {/* Card de Score con borde según estado */}
+              {responseData.response.scoreTotal && (
+                <div className={`bg-white border-2 rounded-lg p-4 text-center min-w-[120px] ${
+                  statusInfo.status === 'approved' ? 'border-green-500' :
+                  statusInfo.status === 'review' ? 'border-orange-500' :
+                  statusInfo.status === 'rejected' ? 'border-red-500' :
+                  'border-gray-300'
+                }`}>
+                  <div className="text-sm text-text-secondary mb-1">Score</div>
+                  <div className={`text-lg font-semibold ${
+                    statusInfo.status === 'approved' ? 'text-green-600' :
+                    statusInfo.status === 'review' ? 'text-orange-600' :
+                    statusInfo.status === 'rejected' ? 'text-red-600' :
+                    'text-gray-600'
+                  }`}>
+                    {responseData.response.scoreTotal}
                   </div>
                 </div>
               )}
