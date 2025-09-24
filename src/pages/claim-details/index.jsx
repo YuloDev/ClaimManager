@@ -305,6 +305,7 @@ const getAdjustedScore = (doc) => {
           },
           sri_verificado: docResponse.data?.validation_data?.sri_verificado || false,
           factura: docResponse.data?.document_parser?.factura || null, // Corregido para acceder a la estructura correcta
+          document_parser: docResponse.data?.document_parser || null, // Agregar el document_parser completo
           success: docResponse.success || false
         },
         validationError: !docResponse.success ? 'Error en la validación del documento' : null
@@ -480,12 +481,18 @@ const getAdjustedScore = (doc) => {
     const firstValidDoc = validDocs[0];
     const facturaInfo = firstValidDoc?.validation?.factura || null;
     
+    // Extraer todos los document_parser de todos los documentos válidos para enviar como details
+    const documentParsers = validDocs
+      .map(doc => doc.validation?.document_parser)
+      .filter(parser => parser !== null && parser !== undefined);
+    
     return {
       payload: {
         patientInfo: patientInfoWithScore,
         diagnosis,
         factura: facturaInfo, // Información completa de la factura
       },
+      details: documentParsers, // Lista de todos los document_parser
       validationResults: results,
       recetasResponse: apiResponse?.recetasResponse ?? null,
       meta: {
