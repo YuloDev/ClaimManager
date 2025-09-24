@@ -546,7 +546,16 @@ async function sendToN8nWebhook(webhookPayload) {
         </div>
       </main>
 
-
+      <EmbeddedFooter
+        src="https://n8n.nextisolutions.com/workflow/V7N5zdXHFaAr7MlD"
+        title="Información relacionada"
+        collapsedHeight={72}
+        expandedHeight={420}
+        defaultExpanded={false}
+        onHeightChange={setFooterH}
+        allow="clipboard-write; clipboard-read"
+        sandbox="allow-scripts allow-forms allow-same-origin"
+      />
     </div>
   );
 };
